@@ -1,0 +1,5 @@
+include README.md
+include requirements.txt
+recursive-include praecentor/assets *.svg *.png
+prune praecentor/assets/fonts
+recursive-include praecentor *

@@ -1,0 +1,10 @@
+version: 1
+meta:
+  title: Happy Birthday
+  artist: Traditional
+events:
+  - lyric: Happy birthday to you
+  - lyric: Happy birthday to you
+  - instruction: Verse 2
+  - lyric: Happy birthday dear friend
+  - lyric: Happy birthday to you

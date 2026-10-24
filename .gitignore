@@ -1,0 +1,12 @@
+__pycache__
+.DS_Store
+*.egg-info
+*.pyc
+/.coverage
+/.coverage.xml
+/.env
+/.pytest_cache
+/.ruff_cache
+/.venv
+/assets/fonts
+/docs/_build/

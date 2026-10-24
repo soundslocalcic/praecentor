@@ -1,0 +1,20 @@
+version: 1
+meta:
+  title: Happy Birthday
+  artist: Traditional
+audio:
+  file: happy_birthday.wav
+timing:
+  lyrics:
+    source: tap
+    map_file: maps/happy_birthday_lyrics_tap.yaml
+    base_offset_seconds: 0.0
+  beats:
+    source: tap
+    map_file: maps/happy_birthday_beats_tap.yaml
+events:
+  - marker: Verse 1
+    lyric: Happy birthday to you
+  - lyric: Happy birthday to you
+  - lyric: Happy birthday dear friend
+  - lyric: Happy birthday to you

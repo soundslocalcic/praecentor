@@ -1,0 +1,6 @@
+cairosvg==2.9.1
+Click==8.5.0
+librosa==1.0.0
+pillow==12.3.0
+PyYAML==6.0.3
+pytest==8.4.1

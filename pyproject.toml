@@ -1,0 +1,31 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "praecentor"
+version = "0.0.1"
+description = "Praecentor package"
+readme = "README.md"
+requires-python = ">=3.8"
+dependencies = [
+    "cairosvg==2.9.1",
+    "Click==8.5.0",
+    "librosa==1.0.0",
+    "pillow==12.3.0",
+    "PyYAML==6.0.3",
+]
+
+[project.scripts]
+praecentor = "praecentor.cli:main"
+
+[tool.setuptools]
+include-package-data = true
+zip-safe = false
+
+[tool.setuptools.packages.find]
+include = ["praecentor*"]
+exclude = ["praecentor.__pycache__", "praecentor.*.__pycache__"]
+
+[tool.setuptools.package-data]
+praecentor = ["assets/*.svg", "assets/*.png"]
