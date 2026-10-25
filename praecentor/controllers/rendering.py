@@ -1762,177 +1762,6 @@ def _validate_uniform_track_durations(
     return reference_duration
 
 
-class _OverlayCompositeSession:
-    def __init__(
-        self,
-        *,
-        ffmpeg_path: str,
-        width: int,
-        height: int,
-        fps: int,
-        video_encoder: str,
-        video_preset: str,
-        video_crf: int | None,
-        video_bitrate: str | None,
-        silent_video_path: Path,
-        total_expected_frames: int,
-        background_frame_provider: Callable[[], Image.Image],
-        emit: Callable[[str], None],
-    ) -> None:
-        self._emit = emit
-        self._background_frame_provider = background_frame_provider
-        self._width = width
-        self._height = height
-        self._total_expected_frames = total_expected_frames
-        self._overlay_pipe_closed = False
-        self._background_writer_error: list[BaseException] = []
-        self._background_writer_elapsed_seconds = 0.0
-
-        background_fd, background_raw_path_raw = tempfile.mkstemp(
-            suffix=".background.rgba.pipe"
-        )
-        os.close(background_fd)
-        self.background_layer_raw_path = Path(background_raw_path_raw)
-        self.background_layer_raw_path.unlink(missing_ok=True)
-        os.mkfifo(self.background_layer_raw_path)
-
-        overlay_fd, overlay_raw_path_raw = tempfile.mkstemp(
-            suffix=".overlay.rgba.pipe"
-        )
-        os.close(overlay_fd)
-        self.overlay_layer_raw_path = Path(overlay_raw_path_raw)
-        self.overlay_layer_raw_path.unlink(missing_ok=True)
-        os.mkfifo(self.overlay_layer_raw_path)
-
-        composite_cmd = [
-            str(ffmpeg_path),
-            "-y",
-            "-f",
-            "rawvideo",
-            "-pix_fmt",
-            "rgba",
-            "-s",
-            f"{width}x{height}",
-            "-r",
-            str(fps),
-            "-i",
-            str(self.background_layer_raw_path),
-            "-f",
-            "rawvideo",
-            "-pix_fmt",
-            "rgba",
-            "-s",
-            f"{width}x{height}",
-            "-r",
-            str(fps),
-            "-i",
-            str(self.overlay_layer_raw_path),
-            "-filter_complex",
-            "[0:v][1:v]overlay=shortest=1:format=auto[out]",
-            "-map",
-            "[out]",
-            "-c:v",
-            str(video_encoder),
-            "-r",
-            str(fps),
-            "-fps_mode",
-            "cfr",
-            "-g",
-            str(max(1, fps * 2)),
-            "-keyint_min",
-            str(max(1, fps * 2)),
-            "-sc_threshold",
-            "0",
-            "-an",
-        ]
-        if video_encoder.lower() == "libx264":
-            composite_cmd.extend(["-preset", str(video_preset)])
-            if video_crf is not None:
-                composite_cmd.extend(["-crf", str(video_crf)])
-        if video_bitrate is not None and str(video_bitrate).strip():
-            composite_cmd.extend(["-b:v", str(video_bitrate).strip()])
-        composite_cmd.extend(["-pix_fmt", "yuv420p", str(silent_video_path)])
-
-        self._composite_proc = subprocess.Popen(
-            composite_cmd,
-            stderr=subprocess.PIPE,
-        )
-        self._background_writer_thread = threading.Thread(
-            target=self._background_pipe_writer,
-            name="background-raw-writer",
-        )
-        self._background_writer_thread.daemon = True
-        self._background_writer_thread.start()
-        self._overlay_raw_stream = self.overlay_layer_raw_path.open(
-            "wb", buffering=0
-        )
-
-    def _background_pipe_writer(self) -> None:
-        started_at = perf_counter()
-        try:
-            with self.background_layer_raw_path.open("wb", buffering=0) as raw_handle:
-                for _ in range(self._total_expected_frames):
-                    img = self._background_frame_provider().convert("RGBA")
-                    if img.size != (self._width, self._height):
-                        if hasattr(Image, "Resampling"):
-                            resample = Image.Resampling.LANCZOS
-                        else:
-                            resample = Image.LANCZOS
-                        img = img.resize((self._width, self._height), resample)
-                    raw_handle.write(img.tobytes())
-        except BrokenPipeError:
-            return
-        except BaseException as exc:  # pragma: no cover - defensive path
-            self._background_writer_error.append(exc)
-        finally:
-            self._background_writer_elapsed_seconds = perf_counter() - started_at
-
-    def overlay_frame_sink(self, image: Image.Image, _frame_index: int) -> None:
-        if self._overlay_pipe_closed:
-            return
-        if self._overlay_raw_stream is None:
-            raise ControllerError("ffmpeg overlay stream is not available")
-        rgba = image.convert("RGBA") if image.mode != "RGBA" else image
-        try:
-            self._overlay_raw_stream.write(rgba.tobytes())
-        except BrokenPipeError:
-            self._overlay_pipe_closed = True
-
-    def finalize(self) -> None:
-        if self._overlay_raw_stream is not None:
-            self._overlay_raw_stream.close()
-            self._overlay_raw_stream = None
-
-        background_wait_started_at = perf_counter()
-        self._background_writer_thread.join()
-        background_wait_elapsed = perf_counter() - background_wait_started_at
-        self._emit(
-            "timing_background_layer_write_seconds="
-            f"{self._background_writer_elapsed_seconds:.6f}"
-        )
-        self._emit(
-            f"timing_background_layer_wait_seconds={background_wait_elapsed:.6f}"
-        )
-        if self._background_writer_error:
-            raise ControllerError(
-                f"background pipe writer failed: {self._background_writer_error[0]}"
-            )
-
-        composite_wait_started_at = perf_counter()
-        _stdout_unused, stderr_raw = self._composite_proc.communicate()
-        composite_wait_elapsed = perf_counter() - composite_wait_started_at
-        self._emit(
-            f"timing_background_composite_seconds={composite_wait_elapsed:.6f}"
-        )
-        if self._composite_proc.returncode != 0:
-            stderr_text = (stderr_raw or b"").decode(
-                "utf-8", errors="replace"
-            ).strip()
-            raise ControllerError(
-                "ffmpeg overlay failed:\n" + (stderr_text or "unknown error")
-            )
-
-
 class _DirectFrameEncodeSession:
     def __init__(self, *, ffmpeg_cmd: list[str], frame_queue_size: int) -> None:
         self._ffmpeg_stderr = tempfile.TemporaryFile()
@@ -3330,9 +3159,6 @@ def render(
             layout_path=resolved_layout_path,
             width=width,
             height=height,
-            fps=fps,
-            ffmpeg_path=str(ffmpeg_path),
-            hwaccel=background_hwaccel,
         )
     except SongConfigError as exc:
         raise ControllerError(str(exc)) from exc
@@ -3344,8 +3170,6 @@ def render(
     )
 
     silent_video_path: Path | None = None
-    background_layer_raw_path: Path | None = None
-    overlay_layer_raw_path: Path | None = None
     padded_video_path: Path | None = None
 
     try:
@@ -3354,29 +3178,7 @@ def render(
             os.close(silent_fd)
             silent_video_path = Path(silent_path_raw)
 
-            compose_background_in_ffmpeg = (
-                background_frame_provider is not None
-            )
-            overlay_session: _OverlayCompositeSession | None = None
             direct_session: _DirectFrameEncodeSession | None = None
-            if compose_background_in_ffmpeg:
-                assert background_frame_provider is not None
-                overlay_session = _OverlayCompositeSession(
-                    ffmpeg_path=str(ffmpeg_path),
-                    width=width,
-                    height=height,
-                    fps=fps,
-                    video_encoder=video_encoder,
-                    video_preset=video_preset,
-                    video_crf=video_crf,
-                    video_bitrate=video_bitrate,
-                    silent_video_path=silent_video_path,
-                    total_expected_frames=total_expected_frames,
-                    background_frame_provider=background_frame_provider,
-                    emit=emit,
-                )
-                background_layer_raw_path = overlay_session.background_layer_raw_path
-                overlay_layer_raw_path = overlay_session.overlay_layer_raw_path
 
             ffmpeg_cmd = [
                 str(ffmpeg_path),
@@ -3417,17 +3219,12 @@ def render(
                 ffmpeg_cmd.extend(["-b:v", str(video_bitrate).strip()])
             ffmpeg_cmd.extend(["-pix_fmt", "yuv420p"])
             ffmpeg_cmd.append(str(silent_video_path))
-            if not compose_background_in_ffmpeg:
-                direct_session = _DirectFrameEncodeSession(
-                    ffmpeg_cmd=ffmpeg_cmd,
-                    frame_queue_size=frame_queue_size,
-                )
-
-            frame_sink = (
-                overlay_session.overlay_frame_sink
-                if overlay_session is not None
-                else direct_session.frame_sink
+            direct_session = _DirectFrameEncodeSession(
+                ffmpeg_cmd=ffmpeg_cmd,
+                frame_queue_size=frame_queue_size,
             )
+
+            frame_sink = direct_session.frame_sink
 
             scratch_output_dir = output_targets[0]["file"].parent
             frame_generation_started_at = perf_counter()
@@ -3452,7 +3249,7 @@ def render(
                         first_chord_preview_text=first_event_chord_preview,
                         first_chord_preview_lead_beats=title_first_chord_preview_lead_beats,  # NOQA E501
                         background_frame_provider=background_frame_provider,
-                        background_is_transparent=compose_background_in_ffmpeg,
+                        background_is_transparent=False,
                         frame_sink=frame_sink,
                         frame_progress_callback=_tick_frame,
                     )
@@ -3490,7 +3287,7 @@ def render(
                     postlude_seconds=cue_postlude_seconds,
                     riff_key_text=key_text,
                     background_frame_provider=background_frame_provider,
-                    background_is_transparent=compose_background_in_ffmpeg,
+                    background_is_transparent=False,
                     frame_sink=frame_sink,
                     frame_progress_callback=_tick_frame,
                 )
@@ -3501,14 +3298,11 @@ def render(
                     f"timing_frame_generation_seconds={frame_generation_elapsed:.6f}"
                 )
             finally:
-                if overlay_session is not None:
-                    overlay_session.finalize()
                 if direct_session is not None:
                     direct_session.finish_writing()
 
-            if not compose_background_in_ffmpeg:
-                assert direct_session is not None
-                direct_session.wait_and_validate(emit=emit)
+            assert direct_session is not None
+            direct_session.wait_and_validate(emit=emit)
 
             emit(f"Rendered silent video to: {silent_video_path}")
 
@@ -3687,8 +3481,6 @@ def render(
         for temp_path in (
             silent_video_path,
             padded_video_path,
-            background_layer_raw_path,
-            overlay_layer_raw_path,
         ):
             if temp_path is None:
                 continue

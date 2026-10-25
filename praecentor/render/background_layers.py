@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import subprocess
 from pathlib import Path
 from typing import Any
 
@@ -89,107 +88,6 @@ class _ImageLayer:
         return
 
 
-class _VideoLayer:
-    def __init__(
-        self,
-        *,
-        file_path: Path,
-        width: int,
-        height: int,
-        fps: int,
-        opacity: float,
-        loop: bool,
-        ffmpeg_path: str,
-        hwaccel: str | None,
-    ) -> None:
-        self._width = width
-        self._height = height
-        self._frame_size = width * height * 4
-        self._opacity = opacity
-        self._last_frame: Image.Image | None = None
-
-        filter_graph = (
-            f"fps={max(1, int(fps))},"
-            f"scale={width}:{height}:force_original_aspect_ratio=increase,"
-            f"crop={width}:{height}"
-        )
-
-        cmd = [str(ffmpeg_path), "-v", "error"]
-        if hwaccel is not None and hwaccel.strip():
-            cmd.extend(["-hwaccel", hwaccel.strip()])
-        if loop:
-            cmd.extend(["-stream_loop", "-1"])
-        cmd.extend(
-            [
-                "-i",
-                str(file_path),
-                "-vf",
-                filter_graph,
-                "-f",
-                "rawvideo",
-                "-pix_fmt",
-                "rgba",
-                "-",
-            ]
-        )
-
-        try:
-            self._proc = subprocess.Popen(
-                cmd,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-            )
-        except OSError as exc:
-            raise SongConfigError(
-                f"Failed to start ffmpeg for background video {file_path}: {exc}"
-            ) from exc
-
-    def _read_exact(self, size: int) -> bytes | None:
-        if self._proc.stdout is None:
-            return None
-
-        data = bytearray()
-        while len(data) < size:
-            chunk = self._proc.stdout.read(size - len(data))
-            if not chunk:
-                break
-            data.extend(chunk)
-
-        if len(data) != size:
-            return None
-        return bytes(data)
-
-    def frame(self) -> Image.Image:
-        raw = self._read_exact(self._frame_size)
-        if raw is None:
-            if self._last_frame is not None:
-                return _apply_opacity(self._last_frame, self._opacity)
-            blank = Image.new(
-                "RGBA", (self._width, self._height), (0, 0, 0, 255)
-            )
-            self._last_frame = blank
-            return _apply_opacity(blank, self._opacity)
-
-        rgba = Image.frombytes("RGBA", (self._width, self._height), raw)
-        self._last_frame = rgba
-        return _apply_opacity(rgba, self._opacity)
-
-    def close(self) -> None:
-        proc = self._proc
-        if proc.poll() is None:
-            proc.terminate()
-            try:
-                proc.wait(timeout=1.0)
-            except subprocess.TimeoutExpired:
-                proc.kill()
-                proc.wait(timeout=1.0)
-
-        if proc.stdout is not None:
-            proc.stdout.close()
-        if proc.stderr is not None:
-            proc.stderr.close()
-
-
 class BackgroundLayerRenderer:
     def __init__(
         self,
@@ -197,7 +95,7 @@ class BackgroundLayerRenderer:
         width: int,
         height: int,
         base_color: tuple[int, int, int],
-        layers: list[_ImageLayer | _VideoLayer],
+        layers: list[_ImageLayer],
     ) -> None:
         self._width = width
         self._height = height
@@ -230,9 +128,6 @@ def build_background_layer_renderer(
     layout_path: Path,
     width: int,
     height: int,
-    fps: int,
-    ffmpeg_path: str,
-    hwaccel: str | None = None,
 ) -> BackgroundLayerRenderer | None:
     bg_type = str(background_config.get("type", "solid")).strip().lower()
     base_color = _hex_to_rgb(str(background_config.get("color", "#000000")))
@@ -247,14 +142,14 @@ def build_background_layer_renderer(
                 "layout.video.background.layers must be a list when type=layers"
             )
         layer_specs = raw_layers
-    elif bg_type in {"image", "video"}:
+    elif bg_type == "image":
         layer_specs = [background_config]
     else:
         raise SongConfigError(
-            "layout.video.background.type must be one of: solid, image, video, layers"
+            "layout.video.background.type must be one of: solid, image, layers"
         )
 
-    layers: list[_ImageLayer | _VideoLayer] = []
+    layers: list[_ImageLayer] = []
     for idx, layer_spec in enumerate(layer_specs):
         if not isinstance(layer_spec, dict):
             raise SongConfigError(
@@ -292,23 +187,9 @@ def build_background_layer_renderer(
                     f"Unable to open background image {resolved_path}: {exc}"
                 ) from exc
             layers.append(_ImageLayer(_apply_opacity(layer_image, opacity)))
-        elif layer_type == "video":
-            loop = bool(layer_spec.get("loop", False))
-            layers.append(
-                _VideoLayer(
-                    file_path=resolved_path,
-                    width=width,
-                    height=height,
-                    fps=fps,
-                    opacity=opacity,
-                    loop=loop,
-                    ffmpeg_path=ffmpeg_path,
-                    hwaccel=hwaccel,
-                )
-            )
         else:
             raise SongConfigError(
-                f"layout.video.background.layers[{idx}].type must be image or video"
+                f"layout.video.background.layers[{idx}].type must be image"
             )
 
     if not layers:
