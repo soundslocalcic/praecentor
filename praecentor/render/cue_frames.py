@@ -2998,7 +2998,7 @@ def render_cue_frames(
 
     lyric_region = _region_to_px(
         regions.get(
-            "lyric_main", {"x": 0.08, "y": 0.0, "width": 0.84, "height": 0.98}
+            "lyric_main", {"x": 0.0, "y": 0.0, "width": 1.0, "height": 0.98}
         ),
         width,
         height,
