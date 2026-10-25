@@ -1763,13 +1763,23 @@ def _validate_uniform_track_durations(
 
 
 class _DirectFrameEncodeSession:
-    def __init__(self, *, ffmpeg_cmd: list[str], frame_queue_size: int) -> None:
+    def __init__(
+        self,
+        *,
+        ffmpeg_cmd: list[str],
+        frame_queue_size: int,
+        width: int,
+        height: int,
+    ) -> None:
         self._ffmpeg_stderr = tempfile.TemporaryFile()
         self._proc = subprocess.Popen(
             ffmpeg_cmd,
             stdin=subprocess.PIPE,
             stderr=self._ffmpeg_stderr,
         )
+        self._width = width
+        self._height = height
+        self._expected_payload_size = width * height * 3
         self._frame_queue: queue.Queue[bytes | None] | None = None
         self._writer_error: list[BaseException] = []
         self._writer_thread: threading.Thread | None = None
@@ -1821,7 +1831,18 @@ class _DirectFrameEncodeSession:
             raise ControllerError(
                 f"ffmpeg frame writer failed: {self._writer_error[0]}"
             )
-        payload = image.tobytes()
+        rgb = image.convert("RGB") if image.mode != "RGB" else image
+        if rgb.size != (self._width, self._height):
+            raise ControllerError(
+                "Frame size does not match encoder dimensions: "
+                f"got {rgb.size}, expected {(self._width, self._height)}"
+            )
+        payload = rgb.tobytes()
+        if len(payload) != self._expected_payload_size:
+            raise ControllerError(
+                "Encoded frame payload size mismatch: "
+                f"got {len(payload)}, expected {self._expected_payload_size}"
+            )
         if self._frame_queue is None:
             if self._proc is None or self._proc.stdin is None:
                 raise ControllerError(
@@ -3222,6 +3243,8 @@ def render(
             direct_session = _DirectFrameEncodeSession(
                 ffmpeg_cmd=ffmpeg_cmd,
                 frame_queue_size=frame_queue_size,
+                width=width,
+                height=height,
             )
 
             frame_sink = direct_session.frame_sink

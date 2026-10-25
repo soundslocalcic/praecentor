@@ -82,7 +82,8 @@ class _ImageLayer:
         self._image = image.convert("RGBA")
 
     def frame(self) -> Image.Image:
-        return self._image
+        # Return a copy so no caller can accidentally mutate shared layer state.
+        return self._image.copy()
 
     def close(self) -> None:
         return
