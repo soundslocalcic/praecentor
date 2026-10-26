@@ -149,6 +149,91 @@ def _load_font(
     )
 
 
+def _style_letter_spacing_px(
+    style: dict[str, Any], font: ImageFont.ImageFont
+) -> float:
+    raw = style.get("letter_spacing_em")
+    family_hint = str(style.get("font_family", "Inter")).strip().lower()
+
+    if raw is None:
+        em_value = -0.05 if "inter" in family_hint else 0.0
+    elif isinstance(raw, (int, float)):
+        em_value = float(raw)
+    elif isinstance(raw, str):
+        text = raw.strip().lower()
+        try:
+            if text.endswith("em"):
+                em_value = float(text[:-2].strip())
+            else:
+                em_value = float(text)
+        except ValueError:
+            em_value = -0.05 if "inter" in family_hint else 0.0
+    else:
+        em_value = -0.05 if "inter" in family_hint else 0.0
+
+    font_size = max(1, int(getattr(font, "size", int(style.get("size_px", 48)))))
+    return float(em_value) * float(font_size)
+
+
+def _line_width_with_spacing(
+    draw: ImageDraw.ImageDraw,
+    line: str,
+    font: ImageFont.ImageFont,
+    letter_spacing_px: float,
+) -> int:
+    line_text = line if line else " "
+    if not line_text:
+        return 1
+
+    width = 0.0
+    for idx, ch in enumerate(line_text):
+        bbox = draw.textbbox((0, 0), ch, font=font)
+        width += max(1, bbox[2] - bbox[0])
+        if idx + 1 < len(line_text):
+            width += letter_spacing_px
+    return max(1, int(round(width)))
+
+
+def _draw_line_with_spacing(
+    draw: ImageDraw.ImageDraw,
+    *,
+    x: int,
+    y: int,
+    line: str,
+    font: ImageFont.ImageFont,
+    fill: tuple[int, int, int] | tuple[int, int, int, int],
+    letter_spacing_px: float,
+) -> None:
+    line_text = line if line else " "
+    cursor_x = float(x)
+    for idx, ch in enumerate(line_text):
+        draw.text((int(round(cursor_x)), y), ch, font=font, fill=fill)
+        bbox = draw.textbbox((0, 0), ch, font=font)
+        cursor_x += max(1, bbox[2] - bbox[0])
+        if idx + 1 < len(line_text):
+            cursor_x += letter_spacing_px
+
+
+def _measure_multiline_block(
+    draw: ImageDraw.ImageDraw,
+    text: str,
+    font: ImageFont.ImageFont,
+    *,
+    letter_spacing_px: float,
+    line_spacing: int = 4,
+) -> tuple[int, int, int, list[int], list[str]]:
+    lines = text.splitlines() or [""]
+    line_bbox = draw.textbbox((0, 0), "Ag", font=font)
+    line_height = max(1, line_bbox[3] - line_bbox[1])
+    line_widths = [
+        _line_width_with_spacing(draw, line, font, letter_spacing_px)
+        for line in lines
+    ]
+    block_w = max(1, max(line_widths, default=1))
+    block_h = max(1, (line_height * len(lines)) + (line_spacing * (len(lines) - 1)))
+    return block_w, block_h, line_height, line_widths, lines
+
+
 @lru_cache(maxsize=512)
 def _load_font_from_candidates(
     candidates: tuple[str, ...], chosen_size: int
@@ -180,11 +265,13 @@ def _fit_font_for_region(
     while low <= high:
         mid = (low + high) // 2
         candidate_font = _load_font(style, size=mid)
-        bbox = draw.multiline_textbbox(
-            (0, 0), text, font=candidate_font, align="center"
+        letter_spacing_px = _style_letter_spacing_px(style, candidate_font)
+        text_w, text_h, _line_height, _line_widths, _lines = _measure_multiline_block(
+            draw,
+            text,
+            candidate_font,
+            letter_spacing_px=letter_spacing_px,
         )
-        text_w = bbox[2] - bbox[0]
-        text_h = bbox[3] - bbox[1]
         if text_w <= max_w and text_h <= max_h:
             best = candidate_font
             low = mid + 1
@@ -206,17 +293,39 @@ def _draw_centered_text(
     font = _fit_font_for_region(draw, text, style, region)
     color = _hex_to_rgb(str(style.get("color", "#FFFFFF")))
     align = str(style.get("align", "center"))
+    letter_spacing_px = _style_letter_spacing_px(style, font)
 
     x, y, w, h = region
-    bbox = draw.multiline_textbbox((0, 0), text, font=font, align=align)
-    text_w = bbox[2] - bbox[0]
-    text_h = bbox[3] - bbox[1]
-
-    text_x = x + (w - text_w) // 2 - bbox[0]
-    text_y = y + (h - text_h) // 2 - bbox[1]
-    draw.multiline_text(
-        (text_x, text_y), text, font=font, fill=color, align=align
+    block_w, block_h, line_height, line_widths, lines = _measure_multiline_block(
+        draw,
+        text,
+        font,
+        letter_spacing_px=letter_spacing_px,
     )
+
+    text_x = x + (w - block_w) // 2
+    text_y = y + (h - block_h) // 2
+    cursor_y = text_y
+    for line_idx, line in enumerate(lines):
+        line_w = line_widths[line_idx]
+        if align == "right":
+            line_x = text_x + (block_w - line_w)
+        elif align == "left":
+            line_x = text_x
+        else:
+            line_x = text_x + (block_w - line_w) // 2
+        _draw_line_with_spacing(
+            draw,
+            x=line_x,
+            y=cursor_y,
+            line=line,
+            font=font,
+            fill=color,
+            letter_spacing_px=letter_spacing_px,
+        )
+        cursor_y += line_height
+        if line_idx + 1 < len(lines):
+            cursor_y += 4
 
 
 def _draw_box(
@@ -329,10 +438,13 @@ def _measure_mixed_font_line(
     line: str,
     base_font: ImageFont.ImageFont,
     flat_font: ImageFont.ImageFont,
+    letter_spacing_px: float = 0.0,
 ) -> int:
     width = 0
-    for ch in line:
+    for idx, ch in enumerate(line):
         width += _char_width(draw, ch, flat_font if ch == "♭" else base_font)
+        if idx + 1 < len(line):
+            width += int(round(letter_spacing_px))
     return width
 
 
@@ -343,6 +455,7 @@ def _mixed_font_block_bbox(
     base_font: ImageFont.ImageFont,
     flat_font: ImageFont.ImageFont,
     line_height_px: int,
+    letter_spacing_px: float,
 ) -> tuple[int, int, int, int]:
     min_x: int | None = None
     min_y: int | None = None
@@ -352,7 +465,7 @@ def _mixed_font_block_bbox(
     for line_idx, line in enumerate(lines):
         cursor_x = 0
         cursor_y = line_idx * line_height_px
-        for ch in line:
+        for ch_idx, ch in enumerate(line):
             glyph_font = flat_font if ch == "♭" else base_font
             left, top, right, bottom = draw.textbbox(
                 (cursor_x, cursor_y), ch, font=glyph_font
@@ -366,6 +479,8 @@ def _mixed_font_block_bbox(
             if max_y is None or bottom > max_y:
                 max_y = bottom
             cursor_x += _char_width(draw, ch, glyph_font)
+            if ch_idx + 1 < len(line):
+                cursor_x += int(round(letter_spacing_px))
 
     if min_x is None or min_y is None or max_x is None or max_y is None:
         block_h = max(1, line_height_px * max(1, len(lines)))
@@ -399,6 +514,7 @@ def _draw_chord_text_with_flat_fallback(
     flat_font = _load_flat_symbol_font(
         getattr(base_font, "size", int(style.get("size_px", 48)))
     )
+    letter_spacing_px = _style_letter_spacing_px(style, base_font)
     color = _hex_to_rgb(str(style.get("color", "#FFFFFF")))
 
     x, y, w, h = inner_region
@@ -415,6 +531,7 @@ def _draw_chord_text_with_flat_fallback(
         base_font=base_font,
         flat_font=flat_font,
         line_height_px=line_height_px,
+        letter_spacing_px=letter_spacing_px,
     )
     block_w = max(1, block_bbox[2] - block_bbox[0])
     block_h = max(1, block_bbox[3] - block_bbox[1])
@@ -423,12 +540,20 @@ def _draw_chord_text_with_flat_fallback(
 
     cursor_y = start_y
     for line in lines:
-        line_w = _measure_mixed_font_line(draw, line, base_font, flat_font)
+        line_w = _measure_mixed_font_line(
+            draw,
+            line,
+            base_font,
+            flat_font,
+            letter_spacing_px,
+        )
         cursor_x = start_x + max(0, (block_w - line_w) // 2)
-        for ch in line:
+        for ch_idx, ch in enumerate(line):
             glyph_font = flat_font if ch == "♭" else base_font
             draw.text((cursor_x, cursor_y), ch, font=glyph_font, fill=color)
             cursor_x += _char_width(draw, ch, glyph_font)
+            if ch_idx + 1 < len(line):
+                cursor_x += int(round(letter_spacing_px))
         cursor_y += line_height_px
 
 
