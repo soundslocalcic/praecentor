@@ -195,17 +195,35 @@ def _line_width_with_spacing(
     font: ImageFont.ImageFont,
     letter_spacing_px: float,
 ) -> int:
-    line_text = line if line else " "
-    if not line_text:
-        return 1
+    left, right = _line_bounds_with_spacing(
+        draw, line, font, letter_spacing_px
+    )
+    return max(1, right - left)
 
-    width = 0.0
+
+def _line_bounds_with_spacing(
+    draw: ImageDraw.ImageDraw,
+    line: str,
+    font: ImageFont.ImageFont,
+    letter_spacing_px: float,
+) -> tuple[int, int]:
+    line_text = line if line else " "
+    min_x: int | None = None
+    max_x: int | None = None
+    cursor_x = 0.0
     for idx, ch in enumerate(line_text):
-        bbox = draw.textbbox((0, 0), ch, font=font)
-        width += max(1, bbox[2] - bbox[0])
+        bbox = draw.textbbox((int(round(cursor_x)), 0), ch, font=font)
+        if min_x is None or bbox[0] < min_x:
+            min_x = bbox[0]
+        if max_x is None or bbox[2] > max_x:
+            max_x = bbox[2]
+        cursor_x += max(1, bbox[2] - bbox[0])
         if idx + 1 < len(line_text):
-            width += letter_spacing_px
-    return max(1, int(round(width)))
+            cursor_x += letter_spacing_px
+
+    if min_x is None or max_x is None:
+        return (0, 1)
+    return (int(min_x), int(max_x))
 
 
 def _draw_line_with_spacing(
@@ -219,7 +237,10 @@ def _draw_line_with_spacing(
     letter_spacing_px: float,
 ) -> None:
     line_text = line if line else " "
-    cursor_x = float(x)
+    min_x, _max_x = _line_bounds_with_spacing(
+        draw, line_text, font, letter_spacing_px
+    )
+    cursor_x = float(x - min_x)
     for idx, ch in enumerate(line_text):
         draw.text((int(round(cursor_x)), y), ch, font=font, fill=fill)
         bbox = draw.textbbox((0, 0), ch, font=font)
@@ -577,14 +598,20 @@ def _render_centered_text_sprite_with_line_overrides(
     max_y: int | None = None
     cursor_y = 0
     for line_idx, line in enumerate(lines):
-        line_text = line if line else " "
         line_w = line_widths[line_idx]
         line_x = (sprite_w - line_w) // 2
-        left, top, right, bottom = measure_draw.textbbox(
+        line_left, line_right = _line_bounds_with_spacing(
+            measure_draw,
+            line,
+            font,
+            letter_spacing_px,
+        )
+        left = line_x + line_left
+        right = line_x + line_right
+        line_text = line if line else " "
+        _unused_left, top, _unused_right, bottom = measure_draw.textbbox(
             (line_x, cursor_y), line_text, font=font
         )
-        if letter_spacing_px > 0 and len(line_text) > 1:
-            right += int(round(letter_spacing_px * (len(line_text) - 1)))
         if min_x is None or left < min_x:
             min_x = left
         if min_y is None or top < min_y:
@@ -3183,13 +3210,6 @@ def render_cue_frames(
         else {}
     )
 
-    lyric_region = _region_to_px(
-        regions.get(
-            "lyric_main", {"x": 0.0, "y": 0.0, "width": 1.0, "height": 0.98}
-        ),
-        width,
-        height,
-    )
     chord_region = _region_to_px(
         regions.get(
             "chord_main", {"x": 0.18, "y": 0.78, "width": 0.38, "height": 0.13}
@@ -3212,6 +3232,20 @@ def render_cue_frames(
         width,
         height,
     )
+
+    raw_lyric_region = regions.get("lyric_main")
+    if isinstance(raw_lyric_region, dict):
+        lyric_region = _region_to_px(raw_lyric_region, width, height)
+    else:
+        # Default lyric region is grid-aligned to the beat pie gutter:
+        # q = distance from beat indicator's right edge to video right edge.
+        # lyric.x = q, lyric.width = video_width - (q * 2)
+        indicator_right = indicator_region[0] + indicator_region[2]
+        q = max(0, width - indicator_right)
+        lyric_x = q
+        lyric_w = max(1, width - (q * 2))
+        lyric_region = (lyric_x, 0, lyric_w, max(1, int(round(height * 0.98))))
+
     raw_riff_region = regions.get("riff")
     if isinstance(raw_riff_region, dict):
         riff_region = _region_to_px(raw_riff_region, width, height)

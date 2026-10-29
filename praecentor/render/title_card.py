@@ -181,17 +181,35 @@ def _line_width_with_spacing(
     font: ImageFont.ImageFont,
     letter_spacing_px: float,
 ) -> int:
-    line_text = line if line else " "
-    if not line_text:
-        return 1
+    left, right = _line_bounds_with_spacing(
+        draw, line, font, letter_spacing_px
+    )
+    return max(1, right - left)
 
-    width = 0.0
+
+def _line_bounds_with_spacing(
+    draw: ImageDraw.ImageDraw,
+    line: str,
+    font: ImageFont.ImageFont,
+    letter_spacing_px: float,
+) -> tuple[int, int]:
+    line_text = line if line else " "
+    min_x: int | None = None
+    max_x: int | None = None
+    cursor_x = 0.0
     for idx, ch in enumerate(line_text):
-        bbox = draw.textbbox((0, 0), ch, font=font)
-        width += max(1, bbox[2] - bbox[0])
+        bbox = draw.textbbox((int(round(cursor_x)), 0), ch, font=font)
+        if min_x is None or bbox[0] < min_x:
+            min_x = bbox[0]
+        if max_x is None or bbox[2] > max_x:
+            max_x = bbox[2]
+        cursor_x += max(1, bbox[2] - bbox[0])
         if idx + 1 < len(line_text):
-            width += letter_spacing_px
-    return max(1, int(round(width)))
+            cursor_x += letter_spacing_px
+
+    if min_x is None or max_x is None:
+        return (0, 1)
+    return (int(min_x), int(max_x))
 
 
 def _draw_line_with_spacing(
@@ -205,7 +223,10 @@ def _draw_line_with_spacing(
     letter_spacing_px: float,
 ) -> None:
     line_text = line if line else " "
-    cursor_x = float(x)
+    min_x, _max_x = _line_bounds_with_spacing(
+        draw, line_text, font, letter_spacing_px
+    )
+    cursor_x = float(x - min_x)
     for idx, ch in enumerate(line_text):
         draw.text((int(round(cursor_x)), y), ch, font=font, fill=fill)
         bbox = draw.textbbox((0, 0), ch, font=font)
