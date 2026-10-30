@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "praecentor"
-version = "2026.2.0"
+version = "2026.2.0.post1"
 description = "Praecentor package"
 readme = "README.md"
 requires-python = ">=3.8"
