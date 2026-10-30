@@ -24,4 +24,5 @@ The project combines:
    rendering
    cli-reference
    api-reference
+   changelog
    troubleshooting

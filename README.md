@@ -89,6 +89,12 @@ praecentor --help
 
 ---
 
+## Release notes
+
+The latest release notes are tracked in [CHANGELOG.md](CHANGELOG.md). The current release is 2026.2.0.
+
+---
+
 ## CLI overview
 
 Praecentor exposes the following commands:
