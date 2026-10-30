@@ -9,5 +9,6 @@ __pycache__
 /.ruff_cache
 /.venv
 /assets/fonts
+/build
 /dist
 /docs/_build/
