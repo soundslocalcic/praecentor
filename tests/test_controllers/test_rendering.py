@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 
@@ -114,3 +115,137 @@ def test_validate_uniform_track_durations_rejects_mismatches(
             tracks=tracks,
             ffmpeg_path="ffmpeg",
         )
+
+
+def test_prevalidate_output_targets_supports_named_track_shape() -> None:
+    output_targets = [
+        {
+            "file": Path("song_multi.mp4"),
+            "tracks": [
+                {"name": "Session", "stems": ["backing.base"]},
+                {"name": "Practice", "stems": ["backing.base", "vocals.*"]},
+            ],
+        }
+    ]
+    stem_audio = {
+        "track_index": {
+            "backing.base": {
+                "file_path": Path("Backing.mp3"),
+                "gain": 1.0,
+            },
+            "vocals.a": {"file_path": Path("A.mp3"), "gain": 1.0},
+            "vocals.b": {"file_path": Path("B.mp3"), "gain": 1.0},
+        }
+    }
+
+    rendering._prevalidate_output_targets(
+        output_targets=output_targets,
+        stem_audio=stem_audio,
+    )
+
+    assert output_targets[0]["selected_tracks"] is None
+    named_tracks = output_targets[0]["named_tracks"]
+    assert isinstance(named_tracks, list)
+    assert [track["name"] for track in named_tracks] == [
+        "Session",
+        "Practice",
+    ]
+    assert len(named_tracks[0]["selected_tracks"]) == 1
+    assert len(named_tracks[1]["selected_tracks"]) == 3
+
+
+def test_prevalidate_output_targets_keeps_legacy_selector_shape() -> None:
+    output_targets = [
+        {
+            "file": Path("song_single.mp4"),
+            "tracks": ["backing.base", "vocals.*"],
+        }
+    ]
+    stem_audio = {
+        "track_index": {
+            "backing.base": {
+                "file_path": Path("Backing.mp3"),
+                "gain": 1.0,
+            },
+            "vocals.a": {"file_path": Path("A.mp3"), "gain": 1.0},
+        }
+    }
+
+    rendering._prevalidate_output_targets(
+        output_targets=output_targets,
+        stem_audio=stem_audio,
+    )
+
+    assert isinstance(output_targets[0]["selected_tracks"], list)
+    assert output_targets[0]["named_tracks"] is None
+
+
+def test_run_mux_for_target_named_tracks_writes_multi_audio_maps(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured_cmd: list[str] = []
+
+    def _fake_run(cmd, stderr=None):
+        captured_cmd.extend(str(part) for part in cmd)
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(rendering.subprocess, "run", _fake_run)
+    monkeypatch.setattr(
+        rendering,
+        "_peak_normalization_gain_db",
+        lambda **_kwargs: None,
+    )
+
+    target = {
+        "file": Path("song_multi.mp4"),
+        "named_tracks": [
+            {
+                "name": "Session",
+                "selected_tracks": [
+                    {
+                        "file_path": Path("Backing.mp3"),
+                        "gain": 1.0,
+                    }
+                ],
+            },
+            {
+                "name": "Practice",
+                "selected_tracks": [
+                    {
+                        "file_path": Path("Backing.mp3"),
+                        "gain": 1.0,
+                    },
+                    {
+                        "file_path": Path("VocalA.mp3"),
+                        "gain": 1.0,
+                    },
+                ],
+            },
+        ],
+    }
+
+    _, _, success, _, _ = rendering._run_mux_for_target(
+        target_idx=1,
+        target=target,
+        mux_video_source_path=Path("silent.mp4"),
+        ffmpeg_path="ffmpeg",
+        ffmpeg_audio_seek_seconds=0.0,
+        audio_path=Path("song.wav"),
+        stem_audio={"track_index": {}},
+        audio_delay_ms=500,
+        target_output_duration=42.0,
+    )
+
+    assert success is True
+    assert "-map" in captured_cmd
+    assert "[a0]" in captured_cmd
+    assert "[a1]" in captured_cmd
+    assert "-disposition:a:0" in captured_cmd
+    assert "default" in captured_cmd
+    assert "-disposition:a:1" in captured_cmd
+    assert "-ar:a" in captured_cmd
+    assert "48000" in captured_cmd
+    assert "-metadata:s:a:0" in captured_cmd
+    assert "title=Session" in captured_cmd
+    assert "-metadata:s:a:1" in captured_cmd
+    assert "title=Practice" in captured_cmd

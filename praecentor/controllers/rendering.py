@@ -1606,20 +1606,81 @@ def _prevalidate_output_targets(
                     "remove tracks or add stems"
                 )
             target["selected_tracks"] = None
+            target["named_tracks"] = None
             continue
 
-        selectors = (
-            target_tracks_raw if isinstance(target_tracks_raw, list) else None
-        )
-        selected_tracks = _resolve_selected_tracks(
-            track_index=stem_audio["track_index"],
-            selectors=selectors,
-        )
-        if not selected_tracks:
-            raise ControllerError(
-                f"No stem tracks selected for output: {target['file']}"
+        if target_tracks_raw is None:
+            selected_tracks = _resolve_selected_tracks(
+                track_index=stem_audio["track_index"],
+                selectors=None,
             )
-        target["selected_tracks"] = selected_tracks
+            if not selected_tracks:
+                raise ControllerError(
+                    f"No stem tracks selected for output: {target['file']}"
+                )
+            target["selected_tracks"] = selected_tracks
+            target["named_tracks"] = None
+            continue
+
+        if not isinstance(target_tracks_raw, list):
+            raise ControllerError("video.output.tracks must be a list")
+
+        if all(isinstance(item, str) for item in target_tracks_raw):
+            selected_tracks = _resolve_selected_tracks(
+                track_index=stem_audio["track_index"],
+                selectors=target_tracks_raw,
+            )
+            if not selected_tracks:
+                raise ControllerError(
+                    f"No stem tracks selected for output: {target['file']}"
+                )
+            target["selected_tracks"] = selected_tracks
+            target["named_tracks"] = None
+            continue
+
+        if not all(isinstance(item, dict) for item in target_tracks_raw):
+            raise ControllerError(
+                "video.output.tracks must be either a list of selector strings "
+                "or a list of mappings with name and stems"
+            )
+
+        named_tracks: list[dict[str, Any]] = []
+        for track_idx, track_cfg in enumerate(target_tracks_raw):
+            name_raw = track_cfg.get("name")
+            if not isinstance(name_raw, str) or not name_raw.strip():
+                raise ControllerError(
+                    "video.output.tracks["
+                    f"{track_idx}"
+                    "].name must be a non-empty string"
+                )
+
+            stems_raw = track_cfg.get("stems")
+            if not isinstance(stems_raw, list) or not stems_raw:
+                raise ControllerError(
+                    "video.output.tracks["
+                    f"{track_idx}"
+                    "].stems must be a non-empty list"
+                )
+
+            selected_tracks = _resolve_selected_tracks(
+                track_index=stem_audio["track_index"],
+                selectors=stems_raw,
+            )
+            if not selected_tracks:
+                raise ControllerError(
+                    "No stem tracks selected for output channel "
+                    f"{name_raw!r} in {target['file']}"
+                )
+
+            named_tracks.append(
+                {
+                    "name": name_raw.strip(),
+                    "selected_tracks": selected_tracks,
+                }
+            )
+
+        target["selected_tracks"] = None
+        target["named_tracks"] = named_tracks
 
 
 def _build_marker_entries(
@@ -1905,6 +1966,8 @@ def _run_mux_for_target(
         str(mux_video_source_path),
     ]
 
+    named_tracks = target.get("named_tracks")
+
     if stem_audio is None:
         if ffmpeg_audio_seek_seconds > 0:
             mux_cmd.extend(
@@ -1915,6 +1978,159 @@ def _run_mux_for_target(
             )
         mux_cmd.extend(["-i", str(audio_path)])
         filter_graph = f"[1:a]adelay={audio_delay_ms}:all=1[m]"
+    elif isinstance(named_tracks, list) and named_tracks:
+        input_stream_idx = 1
+        filter_parts: list[str] = []
+        output_audio_labels: list[str] = []
+
+        for channel_idx, named_track in enumerate(named_tracks):
+            channel_selected_tracks = named_track.get("selected_tracks")
+            if (
+                not isinstance(channel_selected_tracks, list)
+                or not channel_selected_tracks
+            ):
+                raise ControllerError(
+                    "Named output track has no resolved stems for output "
+                    f"{target_path}"
+                )
+
+            for track in channel_selected_tracks:
+                if ffmpeg_audio_seek_seconds > 0:
+                    mux_cmd.extend(
+                        [
+                            "-ss",
+                            _format_ffmpeg_seconds(ffmpeg_audio_seek_seconds),
+                        ]
+                    )
+                mux_cmd.extend(["-i", str(track["file_path"])])
+
+            gain_labels: list[str] = []
+            for track in channel_selected_tracks:
+                gain = float(track["gain"])
+                gain_label = f"c{channel_idx}_g{input_stream_idx}"
+                filter_parts.append(
+                    f"[{input_stream_idx}:a]volume={gain:.6f}[{gain_label}]"
+                )
+                gain_labels.append(f"[{gain_label}]")
+                input_stream_idx += 1
+
+            if len(gain_labels) == 1:
+                mixed_label = f"c{channel_idx}_m"
+                filter_parts.append(
+                    f"{gain_labels[0]}adelay={audio_delay_ms}:all=1[{mixed_label}]"
+                )
+            else:
+                raw_mixed_label = f"c{channel_idx}_mix"
+                mixed_label = f"c{channel_idx}_m"
+                filter_parts.append(
+                    f"{''.join(gain_labels)}amix=inputs={len(gain_labels)}:normalize=0"
+                    f"[{raw_mixed_label}]"
+                )
+                filter_parts.append(
+                    f"[{raw_mixed_label}]adelay={audio_delay_ms}:all=1[{mixed_label}]"
+                )
+
+            probe_filter_graph = _build_probe_filter_graph_for_normalization(
+                audio_delay_ms=audio_delay_ms,
+                selected_tracks=channel_selected_tracks,
+            )
+            gain_db = _peak_normalization_gain_db(
+                ffmpeg_path=str(ffmpeg_path),
+                input_sources=[
+                    str(track["file_path"]) for track in channel_selected_tracks
+                ],
+                filter_graph=probe_filter_graph,
+            )
+
+            normalized_label = f"c{channel_idx}_n"
+            if gain_db is not None and abs(gain_db) > 1e-6:
+                filter_parts.append(
+                    f"[{mixed_label}]volume={gain_db:.6f}dB[{normalized_label}]"
+                )
+            else:
+                normalized_label = mixed_label
+
+            output_label = f"a{channel_idx}"
+            if target_output_duration is not None:
+                trim_end = max(0.001, target_output_duration)
+                filter_parts.append(
+                    f"[{normalized_label}]atrim=end={trim_end:.6f},asetpts=N/SR/TB"
+                    f"[{output_label}]"
+                )
+            else:
+                filter_parts.append(
+                    f"[{normalized_label}]asetpts=N/SR/TB[{output_label}]"
+                )
+
+            output_audio_labels.append(output_label)
+
+        filter_graph = ";".join(filter_parts)
+
+        mux_cmd.extend(
+            [
+                "-filter_complex",
+                filter_graph,
+                "-map",
+                "0:v",
+            ]
+        )
+        for output_label in output_audio_labels:
+            mux_cmd.extend(["-map", f"[{output_label}]"])
+
+        mux_cmd.extend(
+            [
+                "-c:v",
+                "copy",
+                "-c:a",
+                "aac",
+                "-profile:a",
+                "aac_low",
+                "-ar:a",
+                "48000",
+                "-ac:a",
+                "2",
+                "-b:a",
+                "192k",
+            ]
+        )
+
+        for channel_idx in range(len(output_audio_labels)):
+            disposition = "default" if channel_idx == 0 else "0"
+            mux_cmd.extend([f"-disposition:a:{channel_idx}", disposition])
+
+            track_title = str(named_tracks[channel_idx].get("name", "")).strip()
+            if track_title:
+                mux_cmd.extend(
+                    [f"-metadata:s:a:{channel_idx}", f"title={track_title}"]
+                )
+            mux_cmd.extend(
+                [f"-metadata:s:a:{channel_idx}", "language=eng"]
+            )
+
+        if target_output_duration is not None:
+            mux_cmd.extend(["-t", f"{target_output_duration:.6f}"])
+        mux_cmd.append("-shortest")
+        mux_cmd.append(str(target_path))
+
+        mux_stderr = tempfile.TemporaryFile()
+        mux_proc = subprocess.run(mux_cmd, stderr=mux_stderr)
+        mux_stderr.seek(0)
+        mux_error_raw = mux_stderr.read()
+        mux_stderr.close()
+
+        mux_elapsed = perf_counter() - mux_started_at
+        if mux_proc.returncode != 0:
+            mux_error = mux_error_raw.decode("utf-8", errors="replace").strip()
+            return (
+                target_idx,
+                target_path,
+                False,
+                mux_error or "unknown error",
+                mux_elapsed,
+            )
+
+        return (target_idx, target_path, True, "", mux_elapsed)
+
     else:
         selected_tracks = target.get("selected_tracks")
         if not isinstance(selected_tracks, list) or not selected_tracks:
