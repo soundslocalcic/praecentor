@@ -122,7 +122,7 @@ def test_prevalidate_output_targets_supports_named_track_shape() -> None:
         {
             "file": Path("song_multi.mp4"),
             "tracks": [
-                {"name": "Session", "stems": ["backing.base"]},
+                {"name": "Session", "track_id": 12, "stems": ["backing.base"]},
                 {"name": "Practice", "stems": ["backing.base", "vocals.*"]},
             ],
         }
@@ -151,6 +151,7 @@ def test_prevalidate_output_targets_supports_named_track_shape() -> None:
         "Practice",
     ]
     assert len(named_tracks[0]["selected_tracks"]) == 1
+    assert named_tracks[0]["track_id"] == 12
     assert len(named_tracks[1]["selected_tracks"]) == 3
 
 
@@ -180,8 +181,21 @@ def test_prevalidate_output_targets_keeps_legacy_selector_shape() -> None:
     assert output_targets[0]["named_tracks"] is None
 
 
+@pytest.mark.parametrize(
+    ("track_names", "expected_ids"),
+    [
+        (["Session", "Practice"], ["0:1", "1:2", "2:3"]),
+        (["trk:1", "trk:2"], ["0:1", "1:2", "2:3"]),
+        (["trk:8", "trk:1"], ["0:1", "1:2", "2:3"]),
+        (["Session", "trk:2"], ["0:1", "1:2", "2:3"]),
+    ],
+)
+@pytest.mark.parametrize("extension", [".mp4", ".mkv"])
 def test_run_mux_for_target_named_tracks_writes_multi_audio_maps(
     monkeypatch: pytest.MonkeyPatch,
+    track_names: list[str],
+    expected_ids: list[str],
+    extension: str,
 ) -> None:
     captured_cmd: list[str] = []
 
@@ -197,10 +211,10 @@ def test_run_mux_for_target_named_tracks_writes_multi_audio_maps(
     )
 
     target = {
-        "file": Path("song_multi.mp4"),
+        "file": Path(f"song_multi{extension}"),
         "named_tracks": [
             {
-                "name": "Session",
+                "name": track_names[0],
                 "selected_tracks": [
                     {
                         "file_path": Path("Backing.mp3"),
@@ -209,7 +223,7 @@ def test_run_mux_for_target_named_tracks_writes_multi_audio_maps(
                 ],
             },
             {
-                "name": "Practice",
+                "name": track_names[1],
                 "selected_tracks": [
                     {
                         "file_path": Path("Backing.mp3"),
@@ -246,6 +260,53 @@ def test_run_mux_for_target_named_tracks_writes_multi_audio_maps(
     assert "-ar:a" in captured_cmd
     assert "48000" in captured_cmd
     assert "-metadata:s:a:0" in captured_cmd
-    assert "title=Session" in captured_cmd
+    assert f"title={track_names[0]}" in captured_cmd
+    assert f"handler_name={track_names[0]}" in captured_cmd
     assert "-metadata:s:a:1" in captured_cmd
-    assert "title=Practice" in captured_cmd
+    assert f"title={track_names[1]}" in captured_cmd
+    assert f"handler_name={track_names[1]}" in captured_cmd
+    assert "0:v:0" in captured_cmd
+    actual_ids = [
+        captured_cmd[index + 1]
+        for index, option in enumerate(captured_cmd)
+        if option == "-streamid"
+    ]
+    if extension == ".mp4":
+        option_index = captured_cmd.index("-use_stream_ids_as_track_ids")
+        assert captured_cmd[option_index + 1] == "1"
+        assert actual_ids == expected_ids
+    else:
+        assert "-use_stream_ids_as_track_ids" not in captured_cmd
+        assert actual_ids == []
+
+
+@pytest.mark.parametrize(
+    ("tracks", "expected_ids"),
+    [
+        ([{"name": "trk:1"}, {"name": "trk:2"}], [1, 2, 3]),
+        ([{"name": "Practice", "track_id": 3}, {"name": "Session", "track_id": 1}], [2, 3, 1]),
+        ([{"track_id": 2147483647}, {"name": "Session"}], [1, 2147483647, 2]),
+    ],
+)
+def test_mp4_track_ids_reserves_explicit_ids(
+    tracks: list[dict], expected_ids: list[int]
+) -> None:
+    assert rendering._mp4_track_ids(tracks) == expected_ids
+
+
+@pytest.mark.parametrize(
+    ("track_ids", "message"),
+    [
+        ([1, 1], "Duplicate MP4 audio track ID"),
+        ([0], "must be an integer between"),
+        ([-1], "must be an integer between"),
+        ([2147483648], "must be an integer between"),
+        (["1"], "must be an integer between"),
+        ([True], "must be an integer between"),
+    ],
+)
+def test_mp4_track_ids_rejects_invalid_explicit_ids(
+    track_ids: list, message: str
+) -> None:
+    with pytest.raises(ControllerError, match=message):
+        rendering._mp4_track_ids([{"track_id": track_id} for track_id in track_ids])

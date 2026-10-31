@@ -125,6 +125,35 @@ The `render` command is also the default action when the CLI is invoked without 
 
 ---
 
+## Embedded audio track IDs
+
+Named audio outputs in MP4, MOV, and M4V files can supply an optional integer
+`track_id` to assign a specific container track ID. Names are opaque labels
+and never interpreted as IDs:
+
+```yaml
+video:
+  output:
+    - file: "Video/Multi.mp4"
+      tracks:
+        - name: "Backing"
+          track_id: 2
+          stems: ["backing.base"]
+        - name: "Vocals"
+          track_id: 3
+          stems: ["backing.base", "vocals.*"]
+```
+
+The audio tracks above have container IDs `2` and `3`, regardless of their
+order. IDs must be unique within each output and between `1` and `2147483647`.
+The video track and audio tracks with other names receive unused positive IDs.
+Track titles and handler names are also retained, but Safari may expose empty
+audio labels; match `AudioTrack.id` to the numeric ID instead. Applications
+should store their own mapping from domain identifiers to these track IDs,
+alongside each rendered file. Regenerate
+existing videos to apply this convention. Other container formats and legacy
+single-mix outputs retain their existing ID behavior.
+
 ## Song YAML structure
 
 A Praecentor song file is a single YAML document with a root structure similar to this:

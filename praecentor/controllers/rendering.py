@@ -1675,6 +1675,7 @@ def _prevalidate_output_targets(
             named_tracks.append(
                 {
                     "name": name_raw.strip(),
+                    "track_id": track_cfg.get("track_id"),
                     "selected_tracks": selected_tracks,
                 }
             )
@@ -1944,6 +1945,41 @@ class _DirectFrameEncodeSession:
             raise ControllerError(f"ffmpeg frame writer failed: {self._writer_failure}")
 
 
+def _mp4_track_ids(named_tracks: list[dict[str, Any]]) -> list[int]:
+    max_track_id = (1 << 31) - 1
+    audio_ids: list[int | None] = []
+    reserved_ids: set[int] = set()
+
+    for track in named_tracks:
+        track_id = track.get("track_id")
+        if track_id is not None:
+            if (
+                isinstance(track_id, bool)
+                or not isinstance(track_id, int)
+                or not 1 <= track_id <= max_track_id
+            ):
+                raise ControllerError(
+                    f"track_id must be an integer between 1 and {max_track_id}."
+                )
+            if track_id in reserved_ids:
+                raise ControllerError(
+                    f"Duplicate MP4 audio track ID {track_id} in named outputs."
+                )
+            reserved_ids.add(track_id)
+        audio_ids.append(track_id)
+
+    track_ids: list[int] = []
+    next_id = 1
+    for track_id in [None, *audio_ids]:
+        if track_id is None:
+            while next_id in reserved_ids:
+                next_id += 1
+            track_id = next_id
+            reserved_ids.add(track_id)
+        track_ids.append(track_id)
+    return track_ids
+
+
 def _run_mux_for_target(
     *,
     target_idx: int,
@@ -1979,6 +2015,11 @@ def _run_mux_for_target(
         mux_cmd.extend(["-i", str(audio_path)])
         filter_graph = f"[1:a]adelay={audio_delay_ms}:all=1[m]"
     elif isinstance(named_tracks, list) and named_tracks:
+        track_ids = (
+            _mp4_track_ids(named_tracks)
+            if target_path.suffix.lower() in {".mp4", ".mov", ".m4v"}
+            else None
+        )
         input_stream_idx = 1
         filter_parts: list[str] = []
         output_audio_labels: list[str] = []
@@ -2071,11 +2112,16 @@ def _run_mux_for_target(
                 "-filter_complex",
                 filter_graph,
                 "-map",
-                "0:v",
+                "0:v:0",
             ]
         )
         for output_label in output_audio_labels:
             mux_cmd.extend(["-map", f"[{output_label}]"])
+
+        if track_ids is not None:
+            for stream_idx, track_id in enumerate(track_ids):
+                mux_cmd.extend(["-streamid", f"{stream_idx}:{track_id}"])
+            mux_cmd.extend(["-use_stream_ids_as_track_ids", "1"])
 
         mux_cmd.extend(
             [
@@ -2102,6 +2148,10 @@ def _run_mux_for_target(
             if track_title:
                 mux_cmd.extend(
                     [f"-metadata:s:a:{channel_idx}", f"title={track_title}"]
+                )
+
+                mux_cmd.extend(
+                    [f"-metadata:s:a:{channel_idx}", f"handler_name={track_title}"]
                 )
             mux_cmd.extend(
                 [f"-metadata:s:a:{channel_idx}", "language=eng"]
@@ -2394,7 +2444,7 @@ def render(
             "timing.lyrics.max_line_chars must be an integer >= 1"
         )
 
-    lyric_lead_in_beats_raw = lyrics_cfg.get("lead_in_beats", 4)
+    lyric_lead_in_beats_raw = lyrics_cfg.get("lead_in_beats", 2)
     try:
         lyric_lead_in_beats = float(lyric_lead_in_beats_raw)
     except (TypeError, ValueError) as exc:

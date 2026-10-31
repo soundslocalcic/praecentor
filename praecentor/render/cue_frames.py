@@ -185,7 +185,7 @@ def _style_letter_spacing_px(
     else:
         em_value = -0.05 if "inter" in family_hint else 0.0
 
-    font_size = max(1, int(getattr(font, "size", int(style.get("size_px", 48)))))
+    font_size = max(1, int(getattr(font, "size", int(style.get("size_px", 52)))))
     return float(em_value) * float(font_size)
 
 
