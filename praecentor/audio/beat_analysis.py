@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+import statistics
 from bisect import bisect_left
 from pathlib import Path
-import statistics
 from typing import Any
+
+ANALYSIS_SAMPLE_RATE = 22050
+DEFAULT_ANALYSIS_HOP_LENGTH = 256
 
 
 class BeatAnalysisError(RuntimeError):
@@ -28,7 +31,7 @@ def analyze_beats_from_audio(
     dynamic_tempo: bool = False,
     dynamic_tempo_smoothing: int = 1,
     dynamic_tempo_sensitivity: float = 1.0,
-    hop_length: int = 128,
+    hop_length: int = DEFAULT_ANALYSIS_HOP_LENGTH,
 ) -> list[float]:
     hop = int(hop_length)
     if hop < 1:
@@ -44,7 +47,9 @@ def analyze_beats_from_audio(
         ) from exc
 
     try:
-        y, sr = librosa.load(str(audio_path), sr=None, mono=True)
+        y, sr = librosa.load(
+            str(audio_path), sr=ANALYSIS_SAMPLE_RATE, mono=True
+        )
     except Exception as exc:
         raise BeatAnalysisError(
             f"Failed to load audio for beat analysis: {audio_path}"
@@ -238,7 +243,7 @@ def _snap_to_nearest_grid(
 def analyze_click_track_grid_from_audio(
     audio_path: Path,
     *,
-    hop_length: int = 128,
+    hop_length: int = DEFAULT_ANALYSIS_HOP_LENGTH,
 ) -> dict[str, list[float]]:
     """Extract click markers from isolated click audio.
 
@@ -262,7 +267,9 @@ def analyze_click_track_grid_from_audio(
         ) from exc
 
     try:
-        y, sr = librosa.load(str(audio_path), sr=None, mono=True)
+        y, sr = librosa.load(
+            str(audio_path), sr=ANALYSIS_SAMPLE_RATE, mono=True
+        )
     except Exception as exc:
         raise BeatAnalysisError(
             f"Failed to load click track audio: {audio_path}"
