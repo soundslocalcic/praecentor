@@ -3647,9 +3647,7 @@ def render_cue_frames(
         return text_height_cache[value]
 
     wash_layer: Image.Image | None = None
-    wash_asset_path = (
-        Path(__file__).resolve().parents[2] / "assets" / "wash.png"
-    )
+    wash_asset_path = (_ASSET_DIR / "wash.png")
     if wash_asset_path.exists():
         try:
             with Image.open(wash_asset_path) as wash_img:
