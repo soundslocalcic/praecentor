@@ -2,6 +2,18 @@
 
 All notable changes to Praecentor are documented here.
 
+## [2026.3.0] - 2026-11-02
+
+### Added
+- Optional explicit audio track IDs for named multitrack outputs in MP4, MOV, and M4V files. IDs are validated for uniqueness and range; track labels and handler names are retained.
+
+### Changed
+- Reduced the default lyric lead-in from four beats to two.
+- Improved beat and click-track analysis consistency by resampling audio to a standard analysis sample rate.
+
+### Fixed
+- Corrected lookup of the bundled wash image asset during cue rendering.
+
 ## [2026.2.0] - 2026-10-30
 
 This release follows the 2026.1.0 release and brings the major layout and rendering refinements delivered in the v2026.2.0 tag.
