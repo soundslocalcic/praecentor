@@ -136,9 +136,9 @@ def _beat(image, element, beat_time, beat_seconds, beat_times, bar_times, anchor
     size = min(width, height)
     bounds = (left + (width - size) // 2, top + (height - size) // 2)
     bbox = (*bounds, bounds[0] + size - 1, bounds[1] + size - 1)
-    draw.ellipse(bbox, fill="#000000")
     ratio = max(0, min(1, 1 - into / max(1, length)))
-    draw.pieslice(bbox, start=-90, end=-90 + ratio * 360, fill=appearance["fill_color"])
+    if ratio > 0:
+        draw.pieslice(bbox, start=-90 + (1 - ratio) * 360, end=270, fill=appearance["fill_color"])
     state._draw_beat_pulse_ring(
         overlay, _region(inner), beat_remaining_ratio=remaining,
         color=state._hex_to_rgb(appearance["pulse_first_color"] if int(into) % length == 0
@@ -240,6 +240,17 @@ def render_cue_frames(
         beat_seconds=beat_seconds, beat_times_seconds=beat_times_seconds,
         default_beat_anchor_index=beat_anchor_index, event_beats_per_bar=meters,
     )
+    phrase_lengths, phrase_starts = state._resolve_phrase_profile_for_events(
+        song_events=song_events,
+        event_starts_seconds=[value + time_origin_seconds + offsets[index] for index, value in enumerate(starts)],
+        default_beats_per_phrase=default_beats_per_phrase, beat_seconds=beat_seconds,
+        beat_times_seconds=beat_times_seconds, beat_anchor_index=beat_anchor_index,
+        event_beat_anchor_indices=anchors, beats_per_bar=meters,
+    )
+    phrase_bases, _extras = state._resolve_event_phrase_structure(
+        song_events=song_events, default_beats_per_phrase=default_beats_per_phrase,
+        event_beats_per_phrase=phrase_lengths,
+    )
     chords = state._effective_chords_for_all(song_events)
     riffs = state._effective_riffs_for_all(song_events)
     displays = state._display_texts_for_all(song_events)
@@ -336,6 +347,14 @@ def render_cue_frames(
                     _beat(image, element, beat_time, beat_seconds, beat_times_seconds,
                           bar_start_times_seconds, anchors[index], meters[index])
                 elif name == "next_chord" and not postlude:
+                    elapsed = position - phrase_starts[index]
+                    phrase_length = phrase_lengths[index]
+                    if elapsed >= phrase_length:
+                        elapsed -= phrase_length
+                        phrase_length = phrase_bases[index]
+                    ratio = 1 - (elapsed % phrase_length) / phrase_length
+                    token = ""
+                    loop = bool(chords[index]) and not riff_mode
                     target = next_chords[index] if riff_mode else next_lookahead[index]
                     if target is not None:
                         target_time = starts[target] + time_origin_seconds + offsets[target]
@@ -344,17 +363,11 @@ def render_cue_frames(
                             beat_times_seconds=beat_times_seconds, beat_anchor_index=anchors[index],
                         )
                         if until <= element["behavior"]["lookahead_beats"]:
-                            ratio = state._beat_cycle_remaining_ratio(
-                                current_time=beat_time,
-                                cycle_start=starts[index] + time_origin_seconds + offsets[index],
-                                cycle_end=target_time, beat_seconds=beat_seconds,
-                                beat_times_seconds=beat_times_seconds, beat_anchor_index=anchors[index],
-                            )
+                            token = state._next_chord_preview_token(chords[target])
                             loop = state._should_show_loop_indicator(chords[index], chords[target]) and not riff_mode
-                            _next_chord(
-                                image, element, state._next_chord_preview_token(chords[target]), ratio,
-                                warning=state._event_has_next_warning(song_events[index]),
-                                loop=loop, at_seconds=beat_time,
-                            )
+                    _next_chord(
+                        image, element, token, ratio,
+                        warning=state._event_has_next_warning(song_events[index]), loop=loop, at_seconds=beat_time,
+                    )
         _emit(image, frame_index, "cue", Path(output_dir), frame_sink, frame_progress_callback)
     return {"frame_count": body_frames + postlude_frames, "fps": fps}

@@ -17,6 +17,8 @@ All notable changes to Praecentor are documented here.
 
 ### Fixed
 - Sparse v2 specs now inherit the shared all-elements template; element/canvas `enabled: false` explicitly opts out without expanding stored YAML or changing v1 semantics.
+- V2 rendering reuses bounded fitted-text/sprite caches instead of measuring and rasterising unchanged text every frame.
+- V2 beat pies sweep clockwise and leave the elapsed area transparent. The next-chord indicator retains its repeat symbol between changes and counts down each phrase, including tempo/phrase overrides and one-shot extra beats.
 
 ## [2026.3.0] - 2026-11-02
 

@@ -268,8 +268,17 @@ or explicitly cleared. When an included riff is active, it replaces the
 current-chord display; explicitly disabling the riff element leaves chords available.
 Explicit riff pre/post-roll settings and the beat grid control its timing.
 Next-chord lookahead honours explicit silence, repeated-chord loop symbols,
-warning flashes and its configured beat window. Decorations never enlarge
-their owning element's rectangle. Warning flashing does not change text fit.
+warning flashes and its configured beat window. Outside the change window,
+active chords show a repeat symbol instead of hiding the indicator. Its dotted
+ring counts down the current phrase continuously, including across long-held
+chords and lyric-only events. It uses the beat grid, phrase overrides/resets
+and one-shot extra beats, not a slow countdown to a distant chord change.
+Inside the window it shows the incoming chord (or explicit silence) while
+the phrase ring continues. Decorations never enlarge their owning element's
+rectangle. Warning flashing does not change text fit.
+
+The beat pie removes elapsed fill clockwise from twelve o'clock. The unfilled
+area is transparent, revealing the layout background rather than a black disc.
 
 The lyric element displays lyrics or instruction text. When a later distinct
 line exists, its own rectangle is split into current/preview rows using
@@ -277,6 +286,12 @@ line exists, its own rectangle is split into current/preview rows using
 behaviour plus the song's lyric lead-in; they do not depend on other elements.
 Part colours apply to the corresponding lyric lines. Postlude retains the last
 visible lyric and current chord, and keeps the beat clock only when requested.
+
+Fitted text layouts and small glyph sprites use bounded caches. Moving or
+fading unchanged text reuses its fit/rasterisation; cache keys retain geometry,
+style, line colours and selected font files. Opacity is applied to a copy, so
+one frame cannot alter later cached text. Per-frame text painting composites
+only the glyph bounds rather than allocating another full-canvas text image.
 
 For backgrounds, use ``build_background_layer_renderer(layout_data=...,
 layout_path=..., width=1920, height=1080)`` from the version-aware render module

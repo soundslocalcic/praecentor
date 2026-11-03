@@ -12,6 +12,7 @@ from praecentor.io.layout_v2 import SONG_ELEMENTS, validate_layout_config
 from praecentor.io.song import SongConfigError
 from praecentor.render import v2
 from praecentor.render.text_v2 import draw_text, fit_text
+from praecentor.render import text_v2
 
 
 def text_element(**overrides):
@@ -57,6 +58,96 @@ def test_v2_transparent_text_preserves_opacity_once():
     image = Image.new("RGBA", (1920, 1080))
     draw_text(image, "C", text_element(), opacity=0.5)
     assert image.getchannel("A").getextrema()[1] == 128
+
+
+def test_v2_unchanged_text_is_measured_and_drawn_once_for_moving_fading_frames(monkeypatch):
+    text_v2._fit_cached.cache_clear()
+    text_v2._sprite.cache_clear()
+    measure = Mock(wraps=text_v2._layout)
+    monkeypatch.setattr(text_v2, "_layout", measure)
+    element = text_element()
+    for index in range(12):
+        moved = {**element, "y": element["y"] + index}
+        draw_text(Image.new("RGBA", (1920, 1080)), "Stable chord text", moved, opacity=0.5 + index / 24)
+    assert text_v2._sprite.cache_info().misses == 1
+    assert text_v2._fit_cached.cache_info().misses == 1
+    assert measure.call_count <= 8
+
+
+def test_v2_beat_pie_sweeps_clockwise_and_its_elapsed_area_is_transparent():
+    element = validate_layout_config({"version": 2})["song"]["elements"]["beat_indicator"]
+    element["appearance"].update(pulse_expand_px=0, pulse_width_px=1)
+    center_x = round(element["x"] + element["width"] / 2)
+    center_y = round(element["y"] + element["height"] / 2)
+    quarter = Image.new("RGBA", (1920, 1080))
+    v2._beat(quarter, element, 1, 1, None, None, 0, 4)
+    assert quarter.getpixel((center_x + 40, center_y - 40))[3] == 0
+    assert quarter.getpixel((center_x - 40, center_y - 40))[3] == 255
+    assert quarter.getpixel((center_x + 40, center_y + 40))[3] == 255
+    later = Image.new("RGB", (1920, 1080), "#123456")
+    v2._beat(later, element, 3, 1, None, None, 0, 4)
+    assert later.getpixel((center_x + 40, center_y - 40)) == (18, 52, 86)
+    assert later.getpixel((center_x - 40, center_y + 40)) == (18, 52, 86)
+    assert later.getpixel((center_x - 40, center_y - 40)) != (18, 52, 86)
+
+
+def test_v2_repeat_indicator_counts_phrases_until_the_distant_chord_change(tmp_path, monkeypatch):
+    config = {"version": 2, "song": {"elements": {}}}
+    only_song_elements(config, ("next_chord",))
+    calls = []
+    actual = v2._next_chord
+
+    def record(image, element, token, remaining, **kwargs):
+        calls.append((token, remaining, kwargs["loop"]))
+        return actual(image, element, token, remaining, **kwargs)
+
+    monkeypatch.setattr(v2, "_next_chord", record)
+    v2.render_cue_frames(
+        layout_data=config, output_dir=tmp_path, fps=1,
+        song_events=[{"chords": "C"}, {"chords": "G"}], event_starts_seconds=[0, 100],
+        tail_seconds=1, beat_seconds=1, default_beats_per_phrase=4,
+        frame_sink=lambda image, index: None,
+    )
+    assert len(calls) == 101
+    assert calls[0] == ("", 1, True)
+    assert calls[1] == ("", 0.75, True)
+    assert calls[4] == ("", 1, True)
+    assert calls[95][2] is True
+    assert calls[96] == ("G", 1, False)
+
+
+def test_v2_phrase_clock_follows_tempo_changes_and_event_phrase_overrides(tmp_path, monkeypatch):
+    config = {"version": 2, "song": {"elements": {}}}
+    only_song_elements(config, ("next_chord",))
+    calls = []
+    monkeypatch.setattr(v2, "_next_chord", lambda image, element, token, remaining, **kwargs: calls.append(remaining))
+    v2.render_cue_frames(
+        layout_data=config, output_dir=tmp_path, fps=4,
+        song_events=[{"chords": "C", "beats_per_phrase": 4}], event_starts_seconds=[0],
+        tail_seconds=3, beat_seconds=0.5, beat_times_seconds=[0, 0.5, 1, 1.5, 2, 2.25, 2.5, 2.75, 3],
+        default_beats_per_phrase=8, frame_sink=lambda image, index: None,
+    )
+    assert calls[4] == 0.5
+    assert calls[8] == 1
+    assert calls[10] == 0.5
+
+
+def test_v2_repeat_countdown_applies_extra_beats_to_one_phrase_only(tmp_path, monkeypatch):
+    config = {"version": 2, "song": {"elements": {}}}
+    only_song_elements(config, ("next_chord",))
+    calls = []
+    monkeypatch.setattr(v2, "_next_chord", lambda image, element, token, remaining, **kwargs: calls.append(remaining))
+    v2.render_cue_frames(
+        layout_data=config, output_dir=tmp_path, fps=1,
+        song_events=[{"chords": "C", "extra_beats": 2}], event_starts_seconds=[0],
+        tail_seconds=11, beat_seconds=1, default_beats_per_phrase=4,
+        frame_sink=lambda image, index: None,
+    )
+    assert calls[0] == 1
+    assert calls[4] == pytest.approx(1 / 3)
+    assert calls[6] == 1
+    assert calls[7] == 0.75
+    assert calls[10] == 1
 
 
 def sample_config():
