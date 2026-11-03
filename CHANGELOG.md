@@ -16,6 +16,7 @@ All notable changes to Praecentor are documented here.
 - A packaged all-elements v2 draft template for collaborative visual review; final default-layout approval is still pending.
 
 ### Fixed
+- Extend default v2 scroll fades to 282px at both viewport edges, with placement-independent top/bottom behaviour and a regression guard against applying the legacy wash asset.
 - Extend the default lyric scroll from the video top to the chord-row centre and fade its edges with a cached alpha-only mask; current chords are left-aligned.
 - Enlarge the default beat pie by 25% around its existing centre without moving lookahead, and include the same pie on the title canvas with the song meter.
 - Default v2 outgoing scroll blocks fade to zero, with a 1.5rem/141px canvas-reference event gap and preserved explicit em/pixel overrides.

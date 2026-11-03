@@ -302,11 +302,17 @@ blocks intersecting the viewport are drawn, using the bounded glyph caches,
 rather than allocating one giant bitmap for the entire song.
 
 The scroll's alpha is multiplied by a cached vertical gradient at both viewport
-edges. ``edge_fade_px`` defaults to 141px and may be set to zero for a hard clip.
+edges. ``edge_fade_px`` defaults to 282px and may be set to zero for a hard clip.
 The fade acts on text/progress opacity, not background colour: image layers,
 solid colours and other elements remain untouched. Only the visible mask area
 is allocated, including for off-canvas viewports, and normal text/event fades
 multiply with the edge fade rather than being replaced by it.
+The top fade runs down from the viewport's upper edge; the bottom fade runs up
+from its lower edge. This works unchanged with chords above and lyrics below,
+or the reverse, without inferring geometry from the chord box. Fade depth is
+limited to half the viewport for short boxes so the centre remains fully opaque.
+V2 does not load or apply ``wash.png``. That asset remains only for frozen v1
+rendering and must not be deleted while v1 compatibility is retained.
 
 During the final ``scroll_preview_beats`` (default 3) before a new display event,
 the scroll eases to the next block's centre. Song lyric lead-in can extend the

@@ -225,6 +225,23 @@ def test_v2_disabled_elements_keep_background_and_timing(tmp_path):
     assert all(frame.getextrema() == ((18, 18), (52, 52), (86, 86)) for frame in frames)
 
 
+def test_v2_does_not_load_or_apply_legacy_wash(tmp_path, monkeypatch):
+    Image.new("RGBA", (10, 10), (255, 0, 255, 255)).save(tmp_path / "wash.png")
+    monkeypatch.setattr(v2.state, "_ASSET_DIR", tmp_path)
+    original = Image.open
+
+    def forbid_wash(filename, *args, **kwargs):
+        assert Path(filename).name != "wash.png", "V2 must not load the legacy wash"
+        return original(filename, *args, **kwargs)
+
+    monkeypatch.setattr(Image, "open", forbid_wash)
+    _result, frames = render_cues(tmp_path, {
+        "version": 2, "background": {"color": "#123456"},
+        "title": {"enabled": False}, "song": {"enabled": False},
+    })
+    assert all(frame.getextrema() == ((18, 18), (52, 52), (86, 86)) for frame in frames)
+
+
 def test_v2_version_only_layout_renders_the_shared_defaults(tmp_path):
     from praecentor.io.layout_v2 import DEFAULT_LAYOUT_PATH
     sparse = {"version": 2}

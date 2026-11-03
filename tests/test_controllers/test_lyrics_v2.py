@@ -187,3 +187,24 @@ def test_scroll_draws_with_the_viewport_edge_mask_and_can_disable_it(monkeypatch
     scroll = make_scroll([{"lyric": "Visible"}], [0], element={"behavior": {"edge_fade_px": 0}})
     scroll.draw(Image.new("RGBA", (1920, 1080)), 1, 0)
     assert masks[-1] is None
+
+
+@pytest.mark.parametrize("viewport_y", [0, 172])
+def test_default_mask_has_double_depth_for_top_or_bottom_lyric_viewports(viewport_y):
+    config = validate_layout_config({"version": 2})
+    depth = config["song"]["elements"]["lyric_main"]["behavior"]["edge_fade_px"]
+    assert depth == 282
+    element = {"x": 0, "y": viewport_y, "width": 100, "height": 908}
+    mask = _edge_mask(100, 908, depth, 0, 908)
+    assert mask.getpixel((50, 0)) == 0
+    assert mask.getpixel((50, 141)) == 128
+    assert mask.getpixel((50, 282)) == 255
+    assert mask.getpixel((50, 907 - 141)) == 128
+    assert mask.getpixel((50, 907)) == 0
+    image = Image.new("RGB", (100, 1080), "#990000")
+    overlay = Image.new("RGBA", image.size, (255, 255, 255, 255))
+    composite_element(image, overlay, element, alpha_mask=mask)
+    assert image.getpixel((50, viewport_y)) == (153, 0, 0)
+    assert image.getpixel((50, viewport_y + 907)) == (153, 0, 0)
+    assert image.getpixel((50, viewport_y + 141))[1] == 128
+    assert image.getpixel((50, viewport_y + 454)) == (255, 255, 255)
