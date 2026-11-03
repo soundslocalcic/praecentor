@@ -25,12 +25,15 @@ from praecentor.audio import (
     analyze_click_track_grid_from_audio,
     infer_beat_seconds_from_beats,
 )
-from praecentor.io.layout import load_layout_config, resolve_layout_path
+from praecentor.io.layout import resolve_layout_path
 from praecentor.io.song import SongConfigError, load_yaml_file
 from praecentor.io.tap_map import load_beat_tap_map, load_tap_map
-from praecentor.render.background_layers import build_background_layer_renderer
-from praecentor.render.cue_frames import render_cue_frames
-from praecentor.render.title_card import render_title_countdown_frames
+from praecentor.render.v1 import (
+    build_background_layer_renderer,
+    load_layout_config,
+    render_cue_frames,
+    render_title_countdown_frames,
+)
 from praecentor.controllers.errors import ControllerError
 
 MAX_RENDER_FPS = 24

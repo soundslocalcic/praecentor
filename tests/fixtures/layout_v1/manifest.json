@@ -1,0 +1,65 @@
+{
+  "reference_revision": "fb846c77811ef8e53f4a1e98a505f9a423fe8677",
+  "source_sha256": {
+    "praecentor/io/layout.py": "c9eafacdd830d1e19173b76728ca8e911aa37cbc7917107e8b73330a75c974f7",
+    "praecentor/render/cue_frames.py": "7b957c9c2f6b6ffc6d42f7fc8944b4547be2ecb044ccdd9d51b79432f7f6c254",
+    "praecentor/render/title_card.py": "0f2e274449044369c6c6fc1dd0b0b51a9d2b6c6bd328438a3a184d9298ec8dbd",
+    "praecentor/render/background_layers.py": "a9a0f22d2e29e048273c6d2826210d4b41b1c21ef9f339c765f7181b4973258b"
+  },
+  "pillow": "12.3.0",
+  "freetype": "2.14.3",
+  "fonts": {
+    "Inter_24pt-Bold.ttf": "9a2a0b55e203727936212904dedea502e678ba0d6c27851cab1f5eec3d23ef98",
+    "Inter_24pt-ExtraBold.ttf": "a39a597b8e9f869916603b935173e0b444298e012b08a5ed6ab9bbc4f4572212"
+  },
+  "frames": [
+    "cue_0.png",
+    "cue_12.png",
+    "cue_17.png",
+    "cue_4.png",
+    "cue_8.png",
+    "title_0.png",
+    "title_7.png"
+  ],
+  "measurements": {
+    "regions": {
+      "chord_main": [
+        345,
+        842,
+        729,
+        140
+      ],
+      "next_chord": [
+        1267,
+        831,
+        230,
+        129
+      ],
+      "beat_indicator": [
+        1574,
+        788,
+        326,
+        259
+      ],
+      "lyric_main": [
+        20,
+        0,
+        1880,
+        1058
+      ],
+      "riff": [
+        54,
+        788,
+        1498,
+        259
+      ]
+    },
+    "chord_font_sizes": {
+      "C": 149,
+      "Am": 149,
+      "Am, C, F": 149,
+      "Am, C, F, Dm, G, E": 96
+    },
+    "lyric_font_size": 94
+  }
+}

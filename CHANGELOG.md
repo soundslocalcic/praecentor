@@ -2,6 +2,14 @@
 
 All notable changes to Praecentor are documented here.
 
+## [Unreleased]
+
+### Changed
+- Freeze the original v1 layout path behind `praecentor.render.v1`, preserving legacy loading, inferred geometry and text fitting while v2 is developed separately.
+
+### Added
+- Deterministic Inter reference frames, region/font measurements and legacy layout regression checks.
+
 ## [2026.3.0] - 2026-11-02
 
 ### Added

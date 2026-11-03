@@ -3,7 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from praecentor.io.song import SongConfigError, load_yaml_file
+from praecentor.io.layout_v1 import load_layout_config as load_v1_layout_config
+from praecentor.io.song import SongConfigError
 
 DEFAULT_LAYOUT_RELATIVE = Path("examples/layouts/default.yaml")
 
@@ -23,10 +24,4 @@ def resolve_layout_path(layout_file: Path | None) -> Path:
 
 
 def load_layout_config(layout_path: Path) -> dict[str, Any]:
-    data = load_yaml_file(layout_path)
-
-    title = data.get("title")
-    if title is not None and not isinstance(title, dict):
-        raise SongConfigError("layout.title must be a mapping when provided")
-
-    return data
+    return load_v1_layout_config(layout_path)
