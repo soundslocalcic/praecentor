@@ -10,6 +10,7 @@ from praecentor import __version__
 from praecentor.commands.convert import convert_cmd
 from praecentor.commands.diagnose import diagnose_cmd
 from praecentor.commands.render import render_cmd
+from praecentor.commands.preview import preview_cmd
 from praecentor.commands.tap import tap_cmd
 from praecentor.commands.timeline import timeline_cmd
 from praecentor.commands.validate import validate_cmd
@@ -40,5 +41,6 @@ main.add_command(validate_cmd, name="validate")
 main.add_command(tap_cmd, name="tap")
 main.add_command(timeline_cmd, name="timeline")
 main.add_command(render_cmd, name="render")
+main.add_command(preview_cmd, name="preview-layout")
 main.add_command(diagnose_cmd, name="diagnose")
 main.add_command(convert_cmd, name="convert")

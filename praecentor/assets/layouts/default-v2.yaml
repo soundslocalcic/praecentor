@@ -1,0 +1,77 @@
+version: 2
+canvas:
+  width: 1920
+  height: 1080
+background:
+  color: "#101010"
+title:
+  enabled: true
+  countdown_beats: 4
+  elements:
+    title_text:
+      x: 140
+      y: 180
+      width: 1640
+      height: 220
+      style:
+        size_px: 96
+    metadata_text:
+      x: 300
+      y: 440
+      width: 1320
+      height: 200
+      style:
+        size_px: 48
+    countdown_text:
+      x: 864
+      y: 800
+      width: 192
+      height: 180
+      style:
+        size_px: 132
+    first_chord_preview:
+      x: 1600
+      y: 788
+      width: 240
+      height: 240
+      style:
+        size_px: 132
+      appearance:
+        padding_px: 18
+song:
+  elements:
+    lyric_main:
+      x: 54
+      y: 54
+      width: 1498
+      height: 680
+      style:
+        size_px: 94
+    chord_main:
+      x: 54
+      y: 788
+      width: 1498
+      height: 240
+      style:
+        size_px: 144
+        letter_spacing_em: -0.05
+    next_chord:
+      x: 1600
+      y: 788
+      width: 240
+      height: 240
+      style:
+        size_px: 132
+    beat_indicator:
+      x: 1600
+      y: 54
+      width: 259
+      height: 259
+    riff:
+      x: 54
+      y: 788
+      width: 1498
+      height: 240
+      appearance:
+        pre_roll_beats: 0
+        post_roll_beats: 0

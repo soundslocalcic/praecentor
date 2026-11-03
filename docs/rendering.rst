@@ -263,5 +263,57 @@ resolved to file paths by the application before drawing; no upload is fetched
 or modified by Praecentor. A solid background needs no provider.
 
 The complete schema example is still illustrative, not the approved default
-v2 layout. Sample-preview tooling and joint default-layout tuning are the next
-roadmap step; no default composition is frozen by this drawing implementation.
+v2 layout. No default composition is frozen by this drawing implementation.
+
+Preview and tune the draft layout
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+The packaged ``praecentor/assets/layouts/default-v2.yaml`` is the shared draft
+for visual tuning. It contains every supported Title and Song element with
+explicit geometry. Inclusion is not simultaneous visibility: riffs, warnings,
+countdowns and other state-dependent content appear only in suitable samples.
+This template has not yet been visually approved as the final v2 default.
+The renderer still does not inject omitted elements into a custom layout.
+
+Generate a contact sheet from the actual v2 renderer, without audio or FFmpeg:
+
+.. code-block:: bash
+
+   praecentor preview-layout --font-dir /path/to/Inter/fonts \
+     --output layout-preview.png
+
+This writes ``layout-preview.png``, a ``layout-preview-frames`` directory of
+1920x1080 PNGs, and ``layout-preview.json`` recording the source template,
+sample names and selected text/accidental font files. Inter is required for
+included text; fallback to a different primary font is an error, not a silent
+substitution. Fonts may also be selected through ``PRAECENTOR_FONTS_DIR``.
+
+Preview your own explicit v2 YAML, inspect bounds, or open a local viewer:
+
+.. code-block:: bash
+
+   praecentor preview-layout my-layout.yaml --sample lyrics --guides \
+     --output lyrics-guides.png
+   praecentor preview-layout my-layout.yaml --sample chords-long --show
+   praecentor preview-layout --background /path/to/cola.jpg --show
+
+``--background`` replaces the preview's image layers with one fully opaque
+image, without modifying the source layout. To judge a particular opacity or
+layer stack, set it in your YAML and pass that layout file instead. ``--show``
+is opt-in and uses Pillow Image.show(); a desktop viewer may be unavailable
+in Docker or CI, so saved PNGs are the portable output.
+
+Samples are ``title``, ``countdown``, ``lyrics``, ``instruction``,
+``chords-short``, ``chords-long``, ``accidentals``, ``riff``, ``warning`` and
+``beat``. ``all`` creates a two-column labelled contact sheet plus all original
+frames. Guide overlays group coincident rectangles, such as chords/riffs, and
+are never applied to normal renders. The samples use deterministic synthetic
+song events, not sample text stored inside the layout itself. An input v1
+layout is rejected instead of being silently reinterpreted.
+
+The Python entry point is ``praecentor.controllers.preview.preview_layout``;
+it returns the saved file paths and font report. The CLI handles optional
+viewer launching. Normal still generation never opens a viewer. The workflow
+is to edit the draft YAML, regenerate samples, review them with the user, and
+only then freeze the approved template and reference frames. Tooling readiness
+does not imply default-layout approval or permission to migrate stored layouts.

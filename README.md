@@ -106,11 +106,29 @@ praecentor tap beats SONG.yaml
 praecentor timeline SONG.yaml
 praecentor diagnose beats SONG.yaml
 praecentor render SONG.yaml
+praecentor preview-layout --show
 praecentor convert lyrics
 praecentor convert riff
 ```
 
 The `render` command is also the default action when the CLI is invoked without a subcommand.
+
+### Preview V2 Layouts
+
+Generate stills without audio or video encoding:
+
+```bash
+praecentor preview-layout --font-dir /path/to/Inter/fonts --output layout-preview.png
+praecentor preview-layout my-layout.yaml --sample lyrics --guides --show
+```
+
+With no layout argument, this uses the packaged [all-elements draft](praecentor/assets/layouts/default-v2.yaml).
+The draft is for joint visual tuning, not yet the approved default composition.
+The default `--sample all` produces a labelled contact sheet, ten full-size frames
+and a JSON report of selected fonts. `--show` explicitly opens the saved PNG in
+a desktop viewer; omit it for Docker/headless use. Included text requires Inter
+rather than a silent substitute. Existing custom layouts still render only
+their declared elements, and missing layout versions still mean v1 during rollout.
 
 ### Main commands
 

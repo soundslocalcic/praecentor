@@ -28,4 +28,4 @@ include = ["praecentor*"]
 exclude = ["praecentor.__pycache__", "praecentor.*.__pycache__"]
 
 [tool.setuptools.package-data]
-praecentor = ["assets/*.svg", "assets/*.png"]
+praecentor = ["assets/*.svg", "assets/*.png", "assets/layouts/*.yaml"]

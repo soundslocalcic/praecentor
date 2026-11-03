@@ -12,6 +12,8 @@ All notable changes to Praecentor are documented here.
 - Strict v2 layout validation for explicit 1920x1080 pixel rectangles, unique elements, style/appearance settings and immutable normalization, with minimal/complete examples.
 - Version-aware loading and direct frame entry points; unversioned layouts still use frozen v1 during rollout.
 - V2 title/cue/postlude rendering with explicit pixel geometry, shrink-only glyph fitting, clipped decorations, background layers, and shared song/beat timing. Includes mixed accidentals, lyric previews, riff transitions and real encoder integration checks.
+- `preview-layout` generates deterministic renderer-backed sample frames, contact sheets, optional guides and font reports, with opt-in Pillow viewer launching and strict Inter checks.
+- A packaged all-elements v2 draft template for collaborative visual review; final default-layout approval is still pending.
 
 ## [2026.3.0] - 2026-11-02
 

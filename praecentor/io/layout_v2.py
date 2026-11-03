@@ -5,12 +5,14 @@ from __future__ import annotations
 from copy import deepcopy
 import math
 import re
+from pathlib import Path
 from typing import Any
 
 from praecentor.io.song import SongConfigError
 
 CANVAS_WIDTH = 1920
 CANVAS_HEIGHT = 1080
+DEFAULT_LAYOUT_PATH = Path(__file__).resolve().parents[1] / "assets" / "layouts" / "default-v2.yaml"
 TITLE_ELEMENTS = ("title_text", "metadata_text", "countdown_text", "first_chord_preview")
 SONG_ELEMENTS = ("lyric_main", "chord_main", "next_chord", "beat_indicator", "riff")
 TEXT_SIZES = {

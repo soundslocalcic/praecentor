@@ -15,6 +15,7 @@ Core commands
    praecentor timeline SONG.yaml
    praecentor diagnose beats SONG.yaml
    praecentor render SONG.yaml
+   praecentor preview-layout [LAYOUT.yaml] --sample all --output layout-preview.png
    praecentor convert lyrics
    praecentor convert riff
 
@@ -38,6 +39,16 @@ Command overview
 
 ``render``
    Produce the final MP4 and Maestro outputs defined in the song YAML.
+
+``preview-layout``
+   Produce deterministic v2 stills using the actual Pillow renderer, without
+   a song, audio or video encode. Omit LAYOUT.yaml to use the packaged draft
+   containing all supported elements. ``--sample all`` writes a labelled
+   contact sheet and separate full-size frames; other samples write one PNG.
+   Use ``--guides`` for bounds and coordinates, ``--background`` to replace
+   image layers for inspection, and ``--font-dir`` to select local Inter files.
+   ``--show`` explicitly opens the saved PNG via Pillow Image.show(); no viewer
+   opens by default. PNG and JSON report output work in headless environments.
 
 ``convert lyrics``
    Convert raw lyric text into event YAML blocks for authoring.

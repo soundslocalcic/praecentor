@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from praecentor.io.layout_v2 import validate_layout_config
+from praecentor.io.layout_v2 import DEFAULT_LAYOUT_PATH, SONG_ELEMENTS, TITLE_ELEMENTS, validate_layout_config
 from praecentor.io.layout import load_layout_config
 from praecentor.io.song import SongConfigError
 
@@ -12,6 +12,15 @@ def sample_layout():
     return {"version": 2, "song": {"elements": {
         "chord_main": {"x": 54, "y": 788, "width": 1498, "height": 259, "style": {"size_px": 144}},
     }}}
+
+
+def test_packaged_draft_template_contains_every_element():
+    result = load_layout_config(DEFAULT_LAYOUT_PATH)
+    assert set(result["song"]["elements"]) == set(SONG_ELEMENTS)
+    assert set(result["title"]["elements"]) == set(TITLE_ELEMENTS)
+    assert result["song"]["elements"]["chord_main"]["width"] == 1498
+    assert result["song"]["elements"]["riff"]["width"] == 1498
+    assert result["title"]["enabled"] is True
 
 
 @pytest.mark.parametrize("filename", ["minimal.yaml", "complete.yaml"])
