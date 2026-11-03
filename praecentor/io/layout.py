@@ -59,20 +59,33 @@ def resolve_layout_path(layout_file: Path | None) -> Path:
     return default_path
 
 
-def load_layout_config(layout_path: Path) -> dict[str, Any]:
+def load_layout_overrides(layout_path: Path, *, version: int | None = None) -> dict[str, Any]:
     text = layout_path.read_text(encoding="utf-8")
     try:
         data = yaml.safe_load(text)
         if data is None:
             data = {}
-        version = layout_version(data)
+        declared = layout_version(data)
+        selected = declared if version is None else layout_version({"version": version})
+        if version is not None and "version" in data and declared != selected:
+            raise SongConfigError("Explicit layout version conflicts with the file's version")
         root = yaml.compose(text, Loader=yaml.SafeLoader)
         if isinstance(root, yaml.MappingNode):
             versions = [key for key, _value in root.value if key.value == "version"]
             if len(versions) > 1:
                 raise SongConfigError("Duplicate layout YAML key 'version'")
-        if version == 1:
-            return load_v1_layout_config(layout_path)
-        return resolve_layout_config(yaml.load(text, Loader=_UniqueLayoutLoader))
+        if selected == 2:
+            data = yaml.load(text, Loader=_UniqueLayoutLoader) or {}
+        if version is not None:
+            data["version"] = selected
+        resolve_layout_config(data)
+        return deepcopy(data)
     except yaml.YAMLError as exc:
         raise SongConfigError(f"Invalid layout YAML in {layout_path}: {exc}") from exc
+
+
+def load_layout_config(layout_path: Path) -> dict[str, Any]:
+    data = load_layout_overrides(layout_path)
+    if layout_version(data) == 1:
+        return load_v1_layout_config(layout_path)
+    return resolve_layout_config(data)

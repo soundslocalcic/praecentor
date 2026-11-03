@@ -13,7 +13,8 @@ All notable changes to Praecentor are documented here.
 - Version-aware loading and direct frame entry points; unversioned layouts still use frozen v1 during rollout.
 - V2 title/cue/postlude rendering with explicit pixel geometry, shrink-only glyph fitting, clipped decorations, background layers, and shared song/beat timing. Includes mixed accidentals, lyric previews, riff transitions and real encoder integration checks.
 - `preview-layout` generates deterministic renderer-backed sample frames, contact sheets, optional guides and font reports, with opt-in Pillow viewer launching and strict Inter checks.
-- A packaged all-elements v2 draft template for collaborative visual review; final default-layout approval is still pending.
+- An approved packaged all-elements v2 default template with resolved-spec and renderer-frame regression references.
+- Pure original-v1-to-v2 layout conversion with explicit geometry, retained media/visibility and review warnings for non-identical legacy appearance.
 
 ### Fixed
 - Extend default v2 scroll fades to 282px at both viewport edges, with placement-independent top/bottom behaviour and a regression guard against applying the legacy wash asset.

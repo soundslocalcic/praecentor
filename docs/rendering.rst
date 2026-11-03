@@ -353,11 +353,11 @@ or modified by Praecentor. A solid background needs no provider.
 The complete schema example is still illustrative, not the approved default
 v2 layout. No default composition is frozen by this drawing implementation.
 
-Preview and tune the draft layout
+Preview the approved default layout
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-The packaged ``praecentor/assets/layouts/default-v2.yaml`` is the shared draft
-for visual tuning. It contains every supported Title and Song element with
+The packaged ``praecentor/assets/layouts/default-v2.yaml`` is the approved shared
+default. It contains every supported Title and Song element with
 explicit geometry. Inclusion is not simultaneous visibility: riffs, warnings,
 countdowns and other state-dependent content appear only in suitable samples.
 By default the lyric viewport is horizontally centred across the canvas, starts
@@ -422,6 +422,27 @@ layout is rejected instead of being silently reinterpreted.
 The Python entry point is ``praecentor.controllers.preview.preview_layout``;
 it returns the saved file paths and font report. The CLI handles optional
 viewer launching. Normal still generation never opens a viewer. The workflow
-is to edit the draft YAML, regenerate samples, review them with the user, and
-only then freeze the approved template and reference frames. Tooling readiness
-does not imply default-layout approval or permission to migrate stored layouts.
+is to regenerate samples and review any future default changes with the user.
+The accepted resolved spec and eleven sample frames are frozen under
+``tests/fixtures/layout_v2/approved`` with font hashes and Pillow/FreeType
+provenance. Do not refresh them merely to make changed output pass. Pixel
+comparison skips on different font/library builds; the spec check always runs.
+Visual approval does not itself permit resetting or migrating a real database.
+
+Converting original v1 specs
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``praecentor.io.layout_migration.convert_v1_layout(spec, font_dir=...)`` is a
+pure conversion helper returning ``spec``, ``warnings`` and ``changed``. It
+resolves original v1 region defaults/inference at 1920x1080 into explicit v2
+pixel rectangles, preserves file/media references, and records title visibility
+with enable flags. Already valid v2 input is validated and returned unchanged
+in a separate mapping. Noncanonical v1 canvas sizes and unsupported fonts fail
+instead of being silently reinterpreted.
+
+V1 fitted fonts cannot be represented exactly by one v2 maximum for every event.
+Conversion measures a region-height maximum with Inter and emits a warning to
+review representative short/long rows. It also reports changed clipping,
+legacy ring ratios and the approved continuous-scroll/wash differences. The
+caller must review warnings; conversion does not download assets, write YAML,
+modify a database, or regenerate existing videos.

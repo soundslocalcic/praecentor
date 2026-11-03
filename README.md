@@ -122,8 +122,8 @@ praecentor preview-layout --font-dir /path/to/Inter/fonts --output layout-previe
 praecentor preview-layout my-layout.yaml --sample lyrics --guides --show
 ```
 
-With no layout argument, this uses the packaged [all-elements draft](praecentor/assets/layouts/default-v2.yaml).
-The draft is for joint visual tuning, not yet the approved default composition.
+With no layout argument, this uses the approved [all-elements default](praecentor/assets/layouts/default-v2.yaml).
+Its resolved spec and sample frames are protected by approved reference checks.
 The default `--sample all` produces a labelled contact sheet, a full-size frame per sample
 and a JSON report of selected fonts. `--show` explicitly opens the saved PNG in
 a desktop viewer; omit it for Docker/headless use. Included text requires Inter
