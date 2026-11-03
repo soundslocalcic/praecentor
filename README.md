@@ -127,8 +127,10 @@ The draft is for joint visual tuning, not yet the approved default composition.
 The default `--sample all` produces a labelled contact sheet, ten full-size frames
 and a JSON report of selected fonts. `--show` explicitly opens the saved PNG in
 a desktop viewer; omit it for Docker/headless use. Included text requires Inter
-rather than a silent substitute. Existing custom layouts still render only
-their declared elements, and missing layout versions still mean v1 during rollout.
+rather than a silent substitute. V2 layout YAML overrides the shared template:
+even `version: 2` alone includes all elements with sensible geometry/styles.
+Hide an element with `enabled: false`, rather than omitting it. Missing layout
+versions still mean v1 during rollout.
 
 ### Main commands
 

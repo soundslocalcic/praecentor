@@ -63,7 +63,7 @@ def test_v2_loader_validates_and_preserves_input_defaults(tmp_path: Path) -> Non
     config = layout.load_layout_config(path)
     assert config["version"] == 2
     assert config["song"]["elements"]["chord_main"]["x"] == 54
-    assert config["song"]["elements"]["chord_main"]["style"]["size_px"] == 76
+    assert config["song"]["elements"]["chord_main"]["style"]["size_px"] == 144
 
 
 @pytest.mark.parametrize("text", [

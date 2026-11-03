@@ -15,6 +15,9 @@ All notable changes to Praecentor are documented here.
 - `preview-layout` generates deterministic renderer-backed sample frames, contact sheets, optional guides and font reports, with opt-in Pillow viewer launching and strict Inter checks.
 - A packaged all-elements v2 draft template for collaborative visual review; final default-layout approval is still pending.
 
+### Fixed
+- Sparse v2 specs now inherit the shared all-elements template; element/canvas `enabled: false` explicitly opts out without expanding stored YAML or changing v1 semantics.
+
 ## [2026.3.0] - 2026-11-02
 
 ### Added

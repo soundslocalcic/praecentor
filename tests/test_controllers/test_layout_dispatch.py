@@ -56,7 +56,7 @@ def test_v2_never_silently_renders_through_v1(tmp_path, monkeypatch):
         frame_sink=lambda image, index: frames.append(image.copy()),
     )
     assert result["frame_count"] == 1
-    assert frames[0].getbbox() is None
+    assert frames[0].getextrema()[0][1] > 100
     result = layout.render_title_countdown_frames(
         layout_data={"version": 2}, output_dir=tmp_path, fps=1, countdown_beats=1,
         frame_sink=lambda image, index: None,

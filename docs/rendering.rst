@@ -106,23 +106,47 @@ legacy ``video``, ``regions``, ``typography``, ``render`` and ``components``
 settings must be converted, not relabelled as v2. Song-file version and
 layout-file version are separate values.
 
-Minimal valid layout (empty canvases, no foreground elements):
+Minimal valid layout (inherits the shared template and all foreground elements):
 
 .. literalinclude:: ../tests/fixtures/layout_v2/minimal.yaml
    :language: yaml
 
-``canvas`` may be omitted, but if specified its dimensions must be 1920x1080.
-Omitted title/song sections mean empty element maps. No element is implicitly
-created. ``title.enabled`` defaults to true; optional ``title.countdown_beats``
-must be a non-negative integer. A YAML mapping may not repeat any key in v2.
+V2 YAML is an override of the shared ``assets/layouts/default-v2.yaml`` template.
+Missing sections, elements, rectangle fields and styles inherit its values.
+Nested mappings merge recursively; lists (including background layers) replace
+their default list. Empty mappings mean no overrides, not removal. Resolution
+returns a separate mapping and does not expand the original YAML or database spec.
+``canvas`` may be omitted, but supplied dimensions must remain 1920x1080.
+Optional ``title.countdown_beats`` must be a non-negative integer. A YAML mapping
+may not repeat any key in v2.
 
 ``title.elements`` supports ``title_text``, ``metadata_text``, ``countdown_text``
 and ``first_chord_preview``. ``song.elements`` supports ``lyric_main``,
 ``chord_main``, ``next_chord``, ``beat_indicator`` and ``riff``. Elements are
-keyed by name and may occur once on their respective canvas. Each included
-element must supply all four of ``x``, ``y``, ``width`` and ``height`` directly
-on the element mapping. There are no geometry defaults or cross-element
-inferences.
+keyed by name and may occur once on their respective canvas. Resolved elements
+always have explicit pixel ``x``, ``y``, ``width`` and ``height`` values, inherited
+from the shared template unless overridden. They are never inferred from
+another element's position. For example, changing a chord's X retains its
+default Y, width and height.
+
+Disable an element explicitly with a boolean ``enabled: false``:
+
+.. code-block:: yaml
+
+   version: 2
+   song:
+     elements:
+       riff:
+         enabled: false
+       chord_main:
+         x: 100
+         style:
+           size_px: 150
+
+``title.enabled: false`` skips the title sequence. ``song.enabled: false``
+disables song foreground elements while retaining frame timing/backgrounds.
+Use both flags for an intentionally background-only layout. Element and canvas
+enable flags default to true and survive repeated normalization.
 
 Coordinates are finite numbers in pixels: ``0.5`` means half a pixel, not half
 the canvas. Width and height must be positive. Percentage strings, booleans,
@@ -140,11 +164,11 @@ ratio), and ``letter_spacing_em`` (-1 to 1). The lyric style also supports
 
 Style defaults use Inter, weight 700, white, centred alignment in both axes,
 line height 1 and zero letter spacing. Title weight defaults to 800, metadata
-colour to #D9D9D9 and next-chord colour to #FF9F1C. Default sizes are 78, 42,
-72 and 48 for title/metadata/countdown/first-chord preview; 94, 76 and 64 for
-lyrics/current chord/next chord. These are schema fallback values, not the
-future default v2 composition. The complete example explicitly sets larger
-chord sizes. We will jointly tune and approve the default composition later.
+colour to #D9D9D9 and next-chord colour to #FF9F1C. The shared template controls
+resolved sizes: currently 96, 48, 132 and 132 for title/metadata/countdown/
+first-chord preview; 94, 144 and 132 for lyrics/current chord/next chord.
+The renderer, previews and future editor all resolve the same template, rather
+than maintaining separate geometry or composition defaults.
 
 In v2 all text sizes are maxima: drawing must shrink text only when needed to
 fit and must never enlarge it to fill a region. This is intentionally different
@@ -189,7 +213,7 @@ defaults without changing geometry or mutating the caller's data.
 Backgrounds and complete example
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
 
-``background`` has a colour (default black) and an ordered ``layers`` list.
+``background`` has a colour inherited from the template and an ordered ``layers`` list.
 Each image layer requires ``type: image`` and exactly one non-empty ``file``
 or ``media`` reference. ``file`` is a layout-relative or absolute image path;
 ``media`` is a stored upload ID to be resolved by the application before
@@ -241,7 +265,7 @@ rectangle. Negative/off-canvas positions are cropped, not moved back on screen.
 
 Song content still determines visibility. Chords carry forward until changed
 or explicitly cleared. When an included riff is active, it replaces the
-current-chord display; omitting the riff element leaves chords available.
+current-chord display; explicitly disabling the riff element leaves chords available.
 Explicit riff pre/post-roll settings and the beat grid control its timing.
 Next-chord lookahead honours explicit silence, repeated-chord loop symbols,
 warning flashes and its configured beat window. Decorations never enlarge
@@ -272,8 +296,9 @@ The packaged ``praecentor/assets/layouts/default-v2.yaml`` is the shared draft
 for visual tuning. It contains every supported Title and Song element with
 explicit geometry. Inclusion is not simultaneous visibility: riffs, warnings,
 countdowns and other state-dependent content appear only in suitable samples.
-This template has not yet been visually approved as the final v2 default.
-The renderer still does not inject omitted elements into a custom layout.
+Custom v2 layouts inherit this template too; omissions retain defaults and
+explicit ``enabled: false`` settings hide elements. The template's final visual
+approval and reference capture remain separate from this override contract.
 
 Generate a contact sheet from the actual v2 renderer, without audio or FFmpeg:
 
@@ -301,8 +326,8 @@ The positional argument is the layout file itself, not the song's
 ``Praecentor.yaml``. For a song, use the path named by its
 ``video.layout.file`` setting. The song may legitimately declare version 1
 while that referenced layout declares version 2. A custom file containing
-only ``version: 2`` has no foreground elements and therefore renders just
-its background. To preview the all-elements draft, omit the file argument.
+only ``version: 2`` inherits all foreground elements and renders the shared
+default composition. Omitting the file argument previews that same composition.
 
 ``--background`` replaces the preview's image layers with one fully opaque
 image, without modifying the source layout. To judge a particular opacity or

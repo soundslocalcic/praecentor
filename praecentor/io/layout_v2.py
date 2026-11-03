@@ -8,6 +8,8 @@ import re
 from pathlib import Path
 from typing import Any
 
+import yaml
+
 from praecentor.io.song import SongConfigError
 
 CANVAS_WIDTH = 1920
@@ -126,7 +128,7 @@ def _settings(value: Any, defaults: dict[str, Any], path: str) -> dict[str, Any]
 
 
 def _element(value: Any, name: str, path: str) -> dict[str, Any]:
-    allowed = {"x", "y", "width", "height"}
+    allowed = {"x", "y", "width", "height", "enabled"}
     if name in TEXT_SIZES:
         allowed.add("style")
     if name in APPEARANCE:
@@ -134,7 +136,10 @@ def _element(value: Any, name: str, path: str) -> dict[str, Any]:
     if name in BEHAVIOR:
         allowed.add("behavior")
     raw = _mapping(value, path, allowed)
-    result = {}
+    enabled = raw.get("enabled", True)
+    if not isinstance(enabled, bool):
+        raise SongConfigError(f"{path}.enabled must be a boolean")
+    result = {"enabled": enabled}
     for key in ("x", "y", "width", "height"):
         if key not in raw:
             raise SongConfigError(f"{path}.{key} is required in pixels")
@@ -157,11 +162,34 @@ def _element(value: Any, name: str, path: str) -> dict[str, Any]:
     return result
 
 
+def _merge_defaults(defaults: dict[str, Any], overrides: dict[str, Any]) -> dict[str, Any]:
+    result = deepcopy(defaults)
+    for key, value in overrides.items():
+        if isinstance(value, dict) and isinstance(result.get(key), dict):
+            result[key] = _merge_defaults(result[key], value)
+        else:
+            result[key] = deepcopy(value)
+    return result
+
+
+def enabled_elements(config: dict[str, Any], section: str) -> dict[str, Any]:
+    if not config[section]["enabled"]:
+        return {}
+    return {name: element for name, element in config[section]["elements"].items() if element["enabled"]}
+
+
 def validate_layout_config(data: dict[str, Any]) -> dict[str, Any]:
     raw = _mapping(data, "layout", {"version", "canvas", "background", "title", "song"})
     version = raw.get("version", 2)
     if type(version) is not int or version != 2:
         raise SongConfigError("layout.version must be the integer 2 for the v2 validator")
+    try:
+        defaults = yaml.safe_load(DEFAULT_LAYOUT_PATH.read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        raise SongConfigError(f"Unable to load the default v2 template: {exc}") from exc
+    if not isinstance(defaults, dict) or defaults.get("version") != 2:
+        raise SongConfigError("The default v2 template must be a version: 2 mapping")
+    raw = _merge_defaults(defaults, raw)
     canvas = _mapping(raw.get("canvas", {}), "layout.canvas", {"width", "height"})
     for key, expected in (("width", CANVAS_WIDTH), ("height", CANVAS_HEIGHT)):
         value = _number(canvas.get(key, expected), f"layout.canvas.{key}")
@@ -191,17 +219,17 @@ def validate_layout_config(data: dict[str, Any]) -> dict[str, Any]:
         result["background"]["layers"].append({"type": "image", source: layer[source], "opacity": opacity})
     for section, names in (("title", TITLE_ELEMENTS), ("song", SONG_ELEMENTS)):
         path = f"layout.{section}"
-        allowed = {"elements", "enabled", "countdown_beats"} if section == "title" else {"elements"}
+        allowed = {"elements", "enabled", "countdown_beats"} if section == "title" else {"elements", "enabled"}
         section_data = _mapping(raw.get(section, {}), path, allowed)
         elements = _mapping(section_data.get("elements", {}), f"{path}.elements", names)
         result[section] = {"elements": {
             name: _element(value, name, f"{path}.elements.{name}") for name, value in elements.items()
         }}
+        enabled = section_data.get("enabled", True)
+        if not isinstance(enabled, bool):
+            raise SongConfigError(f"{path}.enabled must be a boolean")
+        result[section]["enabled"] = enabled
         if section == "title":
-            enabled = section_data.get("enabled", True)
-            if not isinstance(enabled, bool):
-                raise SongConfigError("layout.title.enabled must be a boolean")
-            result[section]["enabled"] = enabled
             if "countdown_beats" in section_data:
                 count = section_data["countdown_beats"]
                 if type(count) is not int or count < 0:

@@ -9,7 +9,7 @@ from pathlib import Path
 
 from PIL import Image, ImageDraw
 
-from praecentor.io.layout_v2 import CANVAS_HEIGHT, CANVAS_WIDTH, validate_layout_config
+from praecentor.io.layout_v2 import CANVAS_HEIGHT, CANVAS_WIDTH, enabled_elements, validate_layout_config
 from praecentor.io.song import SongConfigError
 from praecentor.render import background_layers, cue_frames as state
 from praecentor.render.text_v2 import composite_element, draw_text, rectangle
@@ -176,7 +176,7 @@ def render_title_countdown_frames(
         raise SongConfigError("beat_seconds must be finite and greater than zero")
     if type(countdown_beats) is not int or countdown_beats < 0:
         raise SongConfigError("countdown_beats must be a non-negative integer")
-    elements = config["title"]["elements"]
+    elements = enabled_elements(config, "title")
     count = max(0, round(countdown_beats * beat_seconds * fps)) if config["title"]["enabled"] else 0
     start_number = countdown_beats if countdown_start_number is None else countdown_start_number
     lead = min(countdown_beats, first_chord_preview_lead_beats if first_chord_preview_lead_beats is not None else 4)
@@ -230,7 +230,7 @@ def render_cue_frames(
         raise SongConfigError("Event starts must be finite, non-negative and monotonic")
     if any(not math.isfinite(value) or value < 0 for value in (tail_seconds, postlude_seconds)):
         raise SongConfigError("Cue tail and postlude durations must be finite and non-negative")
-    elements = config["song"]["elements"]
+    elements = enabled_elements(config, "song")
     meters = list(event_beats_per_bar or [beats_per_bar] * len(song_events))
     offsets = list(beat_time_offsets_seconds or [0.0] * len(song_events))
     if len(meters) != len(song_events) or len(offsets) != len(song_events):

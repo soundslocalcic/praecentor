@@ -12,7 +12,7 @@ from PIL import Image, ImageDraw, ImageFont
 
 from praecentor.controllers.errors import ControllerError
 from praecentor.io.layout import layout_version, load_layout_config
-from praecentor.io.layout_v2 import DEFAULT_LAYOUT_PATH
+from praecentor.io.layout_v2 import DEFAULT_LAYOUT_PATH, enabled_elements
 from praecentor.io.song import SongConfigError
 from praecentor.render import cue_frames as fonts, v2
 
@@ -44,7 +44,7 @@ def _font_directory(directory):
 def _font_report(config):
     reports = {}
     for section in ("title", "song"):
-        for element in config[section]["elements"].values():
+        for element in enabled_elements(config, section).values():
             style = element.get("style")
             if style is None:
                 continue
@@ -93,7 +93,7 @@ def _guides(image, config, section, label_font):
     result = image.copy()
     draw = ImageDraw.Draw(result)
     groups = {}
-    for name, element in config[section]["elements"].items():
+    for name, element in enabled_elements(config, section).items():
         key = tuple(element[field] for field in ("x", "y", "width", "height"))
         groups.setdefault(key, []).append(name)
     for (left, top, width, height), names in groups.items():
@@ -127,6 +127,8 @@ def _render_sample(config, layout_path, sample):
     )
     try:
         if sample in ("title", "countdown"):
+            if not config["title"]["enabled"]:
+                return v2._frame(config, common["background_frame_provider"], False)
             v2.render_title_countdown_frames(
                 **common, title_text="Evening Rehearsal", artist_text="Sample Ensemble",
                 key_text="Bb major", hot_start=True, countdown_beats=4,
@@ -222,6 +224,7 @@ def preview_layout(
                 saved_frames[sample] = str(output)
             metadata = {
                 "layout_file": str(layout_path), "draft_default": layout_file is None,
+                "default_layout_file": str(DEFAULT_LAYOUT_PATH),
                 "canvas": config["canvas"], "output": str(output), "samples": selected,
                 "frames": saved_frames, "fonts": report, "guides": bool(guides),
             }

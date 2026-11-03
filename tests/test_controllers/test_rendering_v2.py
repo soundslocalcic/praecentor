@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from praecentor.controllers import rendering
-from praecentor.io.layout_v2 import validate_layout_config
+from praecentor.io.layout_v2 import SONG_ELEMENTS, validate_layout_config
 from praecentor.io.song import SongConfigError
 from praecentor.render import v2
 from praecentor.render.text_v2 import draw_text, fit_text
@@ -61,6 +61,13 @@ def test_v2_transparent_text_preserves_opacity_once():
 
 def sample_config():
     return yaml.safe_load((Path(__file__).parents[1] / "fixtures" / "layout_v2" / "complete.yaml").read_text())
+
+
+def only_song_elements(config, names):
+    current = config["song"]["elements"]
+    config["song"]["elements"] = {
+        name: current.get(name, {}) if name in names else {"enabled": False} for name in SONG_ELEMENTS
+    }
 
 
 def render_cues(tmp_path, config, **kwargs):
@@ -119,17 +126,35 @@ def test_v2_renders_title_cues_riffs_warning_and_postlude(tmp_path, monkeypatch)
     assert config == original
 
 
-def test_v2_empty_elements_keep_background_and_timing(tmp_path):
-    config = {"version": 2, "background": {"color": "#123456"}}
+def test_v2_disabled_elements_keep_background_and_timing(tmp_path):
+    config = {"version": 2, "background": {"color": "#123456"}, "song": {"enabled": False}}
     result, frames = render_cues(tmp_path, config)
     assert result["frame_count"] == 10
     assert all(frame.getextrema() == ((18, 18), (52, 52), (86, 86)) for frame in frames)
 
 
+def test_v2_version_only_layout_renders_the_shared_defaults(tmp_path):
+    from praecentor.io.layout_v2 import DEFAULT_LAYOUT_PATH
+    sparse = {"version": 2}
+    complete = yaml.safe_load(DEFAULT_LAYOUT_PATH.read_text())
+    kwargs = {"song_events": [{"lyric": "Visible default lyrics", "chords": "C"}],
+              "event_starts_seconds": [0], "postlude_seconds": 0}
+    _result, before = render_cues(tmp_path, sparse, **kwargs)
+    _result, after = render_cues(tmp_path, complete, **kwargs)
+    assert ImageChops.difference(before[0], after[0]).getbbox() is None
+    assert before[0].getextrema()[0][1] > 100
+    assert sparse == {"version": 2}
+    title_frames = []
+    v2.render_title_countdown_frames(
+        layout_data=sparse, output_dir=tmp_path, fps=1, countdown_beats=1, title_text="Default title",
+        frame_sink=lambda image, index: title_frames.append(image.copy()),
+    )
+    assert title_frames[0].getextrema()[0][1] > 100
+
+
 def test_v2_moving_the_beat_indicator_does_not_change_lyric_pixels(tmp_path):
     config = sample_config()
-    config["song"]["elements"] = {key: value for key, value in config["song"]["elements"].items()
-                                  if key in ("lyric_main", "beat_indicator")}
+    only_song_elements(config, ("lyric_main", "beat_indicator"))
     kwargs = {"song_events": [{"lyric": "Unchanged lyrics"}], "event_starts_seconds": [0], "postlude_seconds": 0}
     _result, before = render_cues(tmp_path, config, **kwargs)
     config["song"]["elements"]["beat_indicator"].update(x=1600, y=700)
@@ -138,10 +163,11 @@ def test_v2_moving_the_beat_indicator_does_not_change_lyric_pixels(tmp_path):
     assert ImageChops.difference(before[0].crop(crop), after[0].crop(crop)).getbbox() is None
 
 
-def test_v2_absent_elements_do_not_draw_or_suppress_chords(tmp_path, monkeypatch):
+def test_v2_disabled_elements_do_not_draw_or_suppress_chords(tmp_path, monkeypatch):
     config = {"version": 2, "song": {"elements": {"chord_main": {
         "x": 300, "y": 700, "width": 600, "height": 200,
     }}}}
+    only_song_elements(config, ("chord_main",))
     riff = Mock()
     monkeypatch.setattr(v2.state, "_draw_riff_timeline", riff)
     result, frames = render_cues(tmp_path, config, song_events=[{"chords": "C", "riff": "1 3 5"}],
@@ -157,7 +183,7 @@ def test_v2_absent_elements_do_not_draw_or_suppress_chords(tmp_path, monkeypatch
 def test_v2_decorations_and_riffs_never_paint_outside_their_rectangle(tmp_path, name):
     config = sample_config()
     element = config["song"]["elements"][name]
-    config["song"]["elements"] = {name: element}
+    only_song_elements(config, (name,))
     _result, frames = render_cues(tmp_path, config, background_is_transparent=True)
     bounds = [frame.getbbox() for frame in frames if frame.getbbox() is not None]
     assert bounds
@@ -229,8 +255,7 @@ def test_v2_oversized_warning_gap_cannot_draw_text_outside_the_element():
 
 def test_v2_zero_riff_postroll_switches_to_chords_at_the_event_boundary(tmp_path, monkeypatch):
     config = sample_config()
-    config["song"]["elements"] = {key: value for key, value in config["song"]["elements"].items()
-                                  if key in ("chord_main", "riff")}
+    only_song_elements(config, ("chord_main", "riff"))
     config["song"]["elements"]["riff"]["appearance"].update(pre_roll_beats=0, post_roll_beats=0)
     frames = []
     calls = []

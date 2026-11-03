@@ -54,11 +54,34 @@ def test_single_preview_is_deterministic_and_guides_are_opt_in(tmp_path, inter_d
             assert ImageChops.difference(before, marked).getbbox() is not None
 
 
+def test_version_only_preview_matches_the_default_template(tmp_path, inter_directory):
+    source = tmp_path / "sea_v2.yaml"
+    source.write_text("version: 2\n")
+    custom = preview.preview_layout(source, sample="lyrics", output=tmp_path / "custom.png", font_dir=inter_directory)
+    default = preview.preview_layout(sample="lyrics", output=tmp_path / "default.png", font_dir=inter_directory)
+    with Image.open(custom["output"]) as left, Image.open(default["output"]) as right:
+        assert ImageChops.difference(left, right).getbbox() is None
+    assert source.read_text() == "version: 2\n"
+
+
+def test_preview_handles_explicitly_disabled_canvases_without_loading_fonts(tmp_path):
+    source = tmp_path / "background-only.yaml"
+    source.write_text(yaml.safe_dump({
+        "version": 2, "background": {"color": "#123456"},
+        "title": {"enabled": False}, "song": {"enabled": False},
+    }))
+    result = preview.preview_layout(source, output=tmp_path / "background-only.png")
+    assert result["fonts"] == []
+    for filename in result["frames"].values():
+        with Image.open(filename) as image:
+            assert image.getextrema() == ((18, 18), (52, 52), (86, 86))
+
+
 def test_preview_uses_custom_layout_and_background_without_modifying_sources(tmp_path):
     background = tmp_path / "image.png"
     Image.new("RGB", (40, 40), "#123456").save(background)
     layout = tmp_path / "layout.yaml"
-    layout.write_text(yaml.safe_dump({"version": 2}))
+    layout.write_text(yaml.safe_dump({"version": 2, "title": {"enabled": False}, "song": {"enabled": False}}))
     original = layout.read_bytes()
     result = preview.preview_layout(layout, sample="lyrics", output=tmp_path / "preview.png", background=background)
     assert result["draft_default"] is False

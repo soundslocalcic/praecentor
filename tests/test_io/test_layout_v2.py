@@ -3,7 +3,9 @@ from pathlib import Path
 
 import pytest
 
-from praecentor.io.layout_v2 import DEFAULT_LAYOUT_PATH, SONG_ELEMENTS, TITLE_ELEMENTS, validate_layout_config
+from praecentor.io.layout_v2 import (
+    DEFAULT_LAYOUT_PATH, SONG_ELEMENTS, TITLE_ELEMENTS, enabled_elements, validate_layout_config,
+)
 from praecentor.io.layout import load_layout_config
 from praecentor.io.song import SongConfigError
 
@@ -21,6 +23,35 @@ def test_packaged_draft_template_contains_every_element():
     assert result["song"]["elements"]["chord_main"]["width"] == 1498
     assert result["song"]["elements"]["riff"]["width"] == 1498
     assert result["title"]["enabled"] is True
+
+
+def test_v2_sparse_specs_inherit_all_elements_and_partial_overrides():
+    source = {"version": 2, "song": {"elements": {"chord_main": {"x": 300, "style": {"color": "#ABC"}}}}}
+    original = deepcopy(source)
+    result = validate_layout_config(source)
+    assert set(enabled_elements(result, "song")) == set(SONG_ELEMENTS)
+    assert set(enabled_elements(result, "title")) == set(TITLE_ELEMENTS)
+    chord = result["song"]["elements"]["chord_main"]
+    assert (chord["x"], chord["y"], chord["width"], chord["height"]) == (300, 788, 1498, 240)
+    assert chord["style"]["size_px"] == 144
+    assert chord["style"]["color"] == "#ABC"
+    assert source == original
+
+
+def test_v2_explicit_disabling_survives_repeated_resolution():
+    result = validate_layout_config({"version": 2, "title": {"enabled": False},
+                                     "song": {"elements": {"riff": {"enabled": False}}}})
+    assert enabled_elements(result, "title") == {}
+    assert "riff" not in enabled_elements(result, "song")
+    assert "chord_main" in enabled_elements(result, "song")
+    assert validate_layout_config(result) == result
+    assert enabled_elements(validate_layout_config({"version": 2, "song": {"enabled": False}}), "song") == {}
+
+
+def test_v2_empty_element_maps_do_not_clear_inherited_defaults():
+    result = validate_layout_config({"version": 2, "title": {"elements": {}}, "song": {"elements": {}}})
+    assert set(enabled_elements(result, "song")) == set(SONG_ELEMENTS)
+    assert set(enabled_elements(result, "title")) == set(TITLE_ELEMENTS)
 
 
 @pytest.mark.parametrize("filename", ["minimal.yaml", "complete.yaml"])
@@ -47,13 +78,13 @@ def test_one_element_never_infers_geometry_from_another():
     assert before == after
 
 
-def test_v2_resolves_styles_without_mutating_or_inventing_elements():
+def test_v2_resolves_defaults_and_styles_without_mutating_overrides():
     source = sample_layout()
     original = deepcopy(source)
     result = validate_layout_config(source)
     assert result["canvas"] == {"width": 1920, "height": 1080}
-    assert result["title"]["elements"] == {}
-    assert list(result["song"]["elements"]) == ["chord_main"]
+    assert set(result["title"]["elements"]) == set(TITLE_ELEMENTS)
+    assert set(result["song"]["elements"]) == set(SONG_ELEMENTS)
     assert result["song"]["elements"]["chord_main"]["style"]["size_px"] == 144
     assert result["song"]["elements"]["chord_main"]["style"]["font_family"] == "Inter"
     result["song"]["elements"]["chord_main"]["x"] = 200
@@ -68,11 +99,11 @@ def test_v2_preserves_off_canvas_pixels_without_percentage_inference():
 
 
 @pytest.mark.parametrize("key", ["x", "y", "width", "height"])
-def test_v2_requires_every_rectangle_field(key):
+def test_v2_inherits_missing_rectangle_fields_from_the_shared_template(key):
     source = sample_layout()
     del source["song"]["elements"]["chord_main"][key]
-    with pytest.raises(SongConfigError, match=key):
-        validate_layout_config(source)
+    default = load_layout_config(DEFAULT_LAYOUT_PATH)["song"]["elements"]["chord_main"][key]
+    assert validate_layout_config(source)["song"]["elements"]["chord_main"][key] == default
 
 
 @pytest.mark.parametrize("value", [True, None, "30%", float("inf"), float("nan"), 10 ** 1000])
@@ -89,6 +120,7 @@ def test_v2_rejects_nonfinite_or_nonnumeric_coordinates(value):
     ("style", {"weight": 450}), ("style", {"font_family": "Arial"}),
     ("style", {"color": "red"}), ("style", {"align": "justify"}),
     ("style", {"valign": "baseline"}), ("style", {"unexpected": 1}),
+    ("enabled", "no"),
     ("appearance", {}),
 ])
 def test_v2_rejects_invalid_element_settings(field, value):
@@ -112,15 +144,15 @@ def test_v2_rejects_invalid_structure(source):
         validate_layout_config(source)
 
 
-def test_v2_accepts_empty_canvases_and_nested_appearance_overrides():
+def test_v2_accepts_empty_override_maps_and_nested_appearance_overrides():
     source = {"version": 2, "song": {"elements": {
         "next_chord": {"x": 1600, "y": 700, "width": 200, "height": 200,
                        "appearance": {"ring": {"color": "#ABC"}}},
     }}}
     result = validate_layout_config(source)
-    assert result["title"]["elements"] == {}
+    assert set(enabled_elements(result, "title")) == set(TITLE_ELEMENTS)
     assert result["song"]["elements"]["next_chord"]["appearance"]["ring"]["width_px"] == 6
-    assert validate_layout_config({"version": 2})["song"]["elements"] == {}
+    assert set(enabled_elements(validate_layout_config({"version": 2}), "song")) == set(SONG_ELEMENTS)
 
 
 def test_v2_metadata_visibility_is_explicit_and_boolean():
