@@ -42,13 +42,21 @@ title:
         ring:
           color: "#FF9F1C"
           width_px: 6
+    beat_indicator:
+      x: 1596
+      y: 758
+      width: 300
+      height: 300
+      appearance:
+        pulse_expand_px: 35
+        pulse_width_px: 6.25
 song:
   elements:
     lyric_main:
       x: 54
-      y: 54
+      y: 0
       width: 1812
-      height: 680
+      height: 908
       style:
         size_px: 94
         line_height: 1.2
@@ -61,6 +69,7 @@ song:
       style:
         size_px: 144
         letter_spacing_em: -0.05
+        align: left
     next_chord:
       x: 1338
       y: 788
@@ -72,10 +81,13 @@ song:
         loop:
           icon_scale: 0.9
     beat_indicator:
-      x: 1626
-      y: 788
-      width: 240
-      height: 240
+      x: 1596
+      y: 758
+      width: 300
+      height: 300
+      appearance:
+        pulse_expand_px: 35
+        pulse_width_px: 6.25
     riff:
       x: 54
       y: 788

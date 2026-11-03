@@ -16,7 +16,7 @@ CANVAS_WIDTH = 1920
 CANVAS_HEIGHT = 1080
 CANVAS_REM_PX = 94
 DEFAULT_LAYOUT_PATH = Path(__file__).resolve().parents[1] / "assets" / "layouts" / "default-v2.yaml"
-TITLE_ELEMENTS = ("title_text", "metadata_text", "countdown_text", "first_chord_preview")
+TITLE_ELEMENTS = ("title_text", "metadata_text", "countdown_text", "first_chord_preview", "beat_indicator")
 SONG_ELEMENTS = ("lyric_main", "chord_main", "next_chord", "beat_indicator", "riff")
 TEXT_SIZES = {
     "title_text": 78, "metadata_text": 42, "countdown_text": 72,
@@ -59,7 +59,7 @@ BEHAVIOR = {
     "lyric_main": {
         "scroll_preview_beats": 3.0, "preview_opacity": 0.5, "outgoing_opacity": 0.0,
         "preview_margin_px": None, "event_margin_em": None, "event_margin_rem": 1.5,
-        "entrance_beats": 0.0, "exit_beats": 1.0,
+        "entrance_beats": 0.0, "exit_beats": 1.0, "edge_fade_px": 141,
     },
     "next_chord": {"lookahead_beats": 4.0},
     "first_chord_preview": {"slide_beats": 1.0, "slide_lead_beats": 1.0},

@@ -16,6 +16,8 @@ All notable changes to Praecentor are documented here.
 - A packaged all-elements v2 draft template for collaborative visual review; final default-layout approval is still pending.
 
 ### Fixed
+- Extend the default lyric scroll from the video top to the chord-row centre and fade its edges with a cached alpha-only mask; current chords are left-aligned.
+- Enlarge the default beat pie by 25% around its existing centre without moving lookahead, and include the same pie on the title canvas with the song meter.
 - Default v2 outgoing scroll blocks fade to zero, with a 1.5rem/141px canvas-reference event gap and preserved explicit em/pixel overrides.
 - Centre the lyric viewport above aligned bottom-row chord/riff, lookahead and beat-pie boxes; match title/event lookahead geometry and appearance by default.
 - Default v2 lyric/instruction line height is 1.2; explicit relative/pixel event-gap overrides remain supported.

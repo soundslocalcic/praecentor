@@ -121,7 +121,7 @@ Optional ``title.countdown_beats`` must be a non-negative integer. A YAML mappin
 may not repeat any key in v2.
 
 ``title.elements`` supports ``title_text``, ``metadata_text``, ``countdown_text``
-and ``first_chord_preview``. ``song.elements`` supports ``lyric_main``,
+``first_chord_preview`` and ``beat_indicator``. ``song.elements`` supports ``lyric_main``,
 ``chord_main``, ``next_chord``, ``beat_indicator`` and ``riff``. Elements are
 keyed by name and may occur once on their respective canvas. Resolved elements
 always have explicit pixel ``x``, ``y``, ``width`` and ``height`` values, inherited
@@ -187,7 +187,7 @@ Additional nested settings are supported only on the following elements:
   ``show_hot_start`` flags, all defaulting to true.
 - ``lyric_main.behavior``: ``scroll_preview_beats``, ``preview_opacity``,
   ``outgoing_opacity``, ``event_margin_rem``, ``event_margin_em``, ``preview_margin_px``,
-  ``entrance_beats`` and ``exit_beats``.
+  ``entrance_beats``, ``exit_beats`` and ``edge_fade_px``.
 - ``next_chord.appearance``: ``ring``, ``warning`` and ``loop`` mappings.
   ``next_chord.behavior.lookahead_beats`` controls the lookahead window.
 - ``first_chord_preview.appearance``: ``padding_px`` and ``ring``.
@@ -301,6 +301,13 @@ renderer does not shrink everything merely to show a complete preview. Only
 blocks intersecting the viewport are drawn, using the bounded glyph caches,
 rather than allocating one giant bitmap for the entire song.
 
+The scroll's alpha is multiplied by a cached vertical gradient at both viewport
+edges. ``edge_fade_px`` defaults to 141px and may be set to zero for a hard clip.
+The fade acts on text/progress opacity, not background colour: image layers,
+solid colours and other elements remain untouched. Only the visible mask area
+is allocated, including for off-canvas viewports, and normal text/event fades
+multiply with the edge fade rather than being replaced by it.
+
 During the final ``scroll_preview_beats`` (default 3) before a new display event,
 the scroll eases to the next block's centre. Song lyric lead-in can extend the
 transition window; arrival remains aligned with the actual cue time. Default
@@ -347,10 +354,15 @@ The packaged ``praecentor/assets/layouts/default-v2.yaml`` is the shared draft
 for visual tuning. It contains every supported Title and Song element with
 explicit geometry. Inclusion is not simultaneous visibility: riffs, warnings,
 countdowns and other state-dependent content appear only in suitable samples.
-By default the lyric viewport is horizontally centred across the canvas, above
-a shared bottom row. Current chords/riffs occupy the left 1236px box; lookahead
-and beat pie have separate 240px boxes to its right. All bottom-row boxes use
-Y=788 and height=240, with no overlap or runtime dependence between them.
+By default the lyric viewport is horizontally centred across the canvas, starts
+at Y=0 without a top inset and extends to Y=908, bisecting the chord/riff row.
+Its lower edge fades out over that row; it paints before the foreground chord
+and timing graphics. Current chords/riffs occupy the left 1236x240px box at
+(54,788), with current chords left-aligned. Lookahead stays at (1338,788) in a
+240px square. The beat pie is 25% larger: a 300px square at (1596,758), retaining
+the same centre Y=908 without moving lookahead. Pulse dimensions scale with it.
+The title canvas includes the same beat-pie geometry/appearance by default and
+the controller supplies the song's beats-per-bar for its countdown clock.
 The title's first-chord preview has the same default rectangle, orange text,
 font size, ring colour/width and text padding as the event lookahead. Overrides
 remain independent: changing an event element does not move a title element.

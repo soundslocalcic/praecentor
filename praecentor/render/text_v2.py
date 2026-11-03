@@ -6,7 +6,7 @@ from functools import lru_cache
 import math
 from typing import Any
 
-from PIL import Image, ImageDraw
+from PIL import Image, ImageChops, ImageDraw
 
 from praecentor.render import cue_frames as legacy
 
@@ -19,12 +19,16 @@ def rectangle(element: dict[str, Any]) -> tuple[int, int, int, int]:
     )
 
 
-def composite_element(image: Image.Image, overlay: Image.Image, element: dict[str, Any]) -> None:
+def composite_element(
+    image: Image.Image, overlay: Image.Image, element: dict[str, Any], *, alpha_mask: Image.Image | None = None,
+) -> None:
     left, top, right, bottom = rectangle(element)
     bounds = (max(0, left), max(0, top), min(image.width, right), min(image.height, bottom))
     if bounds[2] <= bounds[0] or bounds[3] <= bounds[1]:
         return
     crop = overlay.crop(bounds)
+    if alpha_mask is not None:
+        crop.putalpha(ImageChops.multiply(crop.getchannel("A"), alpha_mask))
     if image.mode == "RGBA":
         image.alpha_composite(crop, dest=bounds[:2])
     else:

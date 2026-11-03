@@ -2,7 +2,8 @@ from PIL import Image
 import pytest
 
 from praecentor.io.layout_v2 import validate_layout_config
-from praecentor.render.lyrics_v2 import LyricScroll
+from praecentor.render.lyrics_v2 import LyricScroll, _edge_mask
+from praecentor.render.text_v2 import composite_element
 
 
 def make_scroll(events, starts, **kwargs):
@@ -150,3 +151,39 @@ def test_chord_only_events_do_not_shorten_a_scrolling_progress_window():
     assert scroll.blocks[1]["kind"] == "progress"
     assert scroll.blocks[1]["window"] == ("break", 5, 25)
     assert scroll.event_blocks[1] is scroll.event_blocks[2]
+
+
+def test_scroll_edge_mask_fades_alpha_instead_of_painting_background_colours():
+    element = {"x": 0, "y": 0, "width": 100, "height": 200}
+    mask = _edge_mask(100, 200, 40, 0, 200)
+    overlay = Image.new("RGBA", (100, 200), (255, 255, 255, 128))
+    transparent = Image.new("RGBA", (100, 200))
+    composite_element(transparent, overlay, element, alpha_mask=mask)
+    assert transparent.getpixel((50, 0))[3] == 0
+    assert 60 <= transparent.getpixel((50, 20))[3] <= 65
+    assert transparent.getpixel((50, 100))[3] == 128
+    assert transparent.getpixel((50, 199))[3] == 0
+    red = Image.new("RGB", (100, 200), "#990000")
+    composite_element(red, overlay, element, alpha_mask=mask)
+    assert red.getpixel((50, 0)) == (153, 0, 0)
+    assert red.getpixel((50, 199)) == (153, 0, 0)
+    assert red.getpixel((50, 20))[1] < red.getpixel((50, 100))[1]
+
+
+def test_scroll_draws_with_the_viewport_edge_mask_and_can_disable_it(monkeypatch):
+    from praecentor.render import lyrics_v2
+    actual = lyrics_v2.composite_element
+    masks = []
+
+    def record(image, overlay, element, **kwargs):
+        masks.append(kwargs["alpha_mask"])
+        return actual(image, overlay, element, **kwargs)
+
+    monkeypatch.setattr(lyrics_v2, "composite_element", record)
+    scroll = make_scroll([{"lyric": "Visible"}], [0])
+    scroll.draw(Image.new("RGBA", (1920, 1080)), 1, 0)
+    assert masks[-1].getpixel((0, 0)) == 0
+    assert masks[-1].getpixel((0, masks[-1].height // 2)) == 255
+    scroll = make_scroll([{"lyric": "Visible"}], [0], element={"behavior": {"edge_fade_px": 0}})
+    scroll.draw(Image.new("RGBA", (1920, 1080)), 1, 0)
+    assert masks[-1] is None

@@ -66,7 +66,7 @@ def test_complete_example_exercises_all_supported_elements():
     path = Path(__file__).parents[1] / "fixtures" / "layout_v2" / "complete.yaml"
     result = load_layout_config(path)
     assert len(result["song"]["elements"]) == 5
-    assert len(result["title"]["elements"]) == 4
+    assert len(result["title"]["elements"]) == 5
 
 
 def test_one_element_never_infers_geometry_from_another():

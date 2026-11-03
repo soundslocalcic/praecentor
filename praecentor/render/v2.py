@@ -153,7 +153,7 @@ def render_title_countdown_frames(
     *, layout_data, output_dir, width=1920, height=1080, fps=24, title_text="", artist_text="",
     key_text="", hot_start=False, countdown_beats=4, beat_seconds=1.0, countdown_start_number=None,
     first_chord_preview_text=None, first_chord_preview_lead_beats=None, background_frame_provider=None,
-    background_is_transparent=False, frame_sink=None, frame_progress_callback=None, **kwargs,
+    background_is_transparent=False, frame_sink=None, frame_progress_callback=None, beats_per_bar=4, **kwargs,
 ):
     config = _config(layout_data, width, height, fps)
     if not math.isfinite(beat_seconds) or beat_seconds <= 0:
@@ -178,6 +178,8 @@ def render_title_countdown_frames(
                 draw_text(image, "\n".join(line for line in lines if line), element)
             elif name == "countdown_text":
                 draw_text(image, str(start_number - int(beat_position)), element)
+            elif name == "beat_indicator":
+                _beat(image, element, index / fps, beat_seconds, None, None, 0, beats_per_bar)
             elif name == "first_chord_preview" and first_chord_preview_text and beat_position >= countdown_beats - lead:
                 behavior = element["behavior"]
                 slide_start = countdown_beats - lead - behavior["slide_lead_beats"]

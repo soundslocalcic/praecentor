@@ -3546,6 +3546,7 @@ def render(
                         background_is_transparent=False,
                         frame_sink=frame_sink,
                         frame_progress_callback=_tick_frame,
+                        **({"beats_per_bar": beats_per_bar} if layout_version(layout_data) == 2 else {}),
                     )
                 else:
                     emit(

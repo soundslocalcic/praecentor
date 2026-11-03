@@ -4,18 +4,30 @@ from __future__ import annotations
 
 from bisect import bisect_left, bisect_right
 from copy import deepcopy
+from functools import lru_cache
 import math
 
 from PIL import Image, ImageDraw
 
 from praecentor.io.layout_v2 import CANVAS_REM_PX
 from praecentor.render import cue_frames as state
-from praecentor.render.text_v2 import composite_element, draw_text, fit_text
+from praecentor.render.text_v2 import composite_element, draw_text, fit_text, rectangle
 
 
 def _ease(value):
     value = max(0.0, min(1.0, value))
     return value * value * (3 - 2 * value)
+
+
+@lru_cache(maxsize=16)
+def _edge_mask(width, height, fade, offset_y, viewport_height):
+    fade = min(fade, max(1.0, (viewport_height - 1) / 2))
+    values = bytes(
+        round(255 * max(0, min(1, (offset_y + row) / fade,
+                               (viewport_height - 1 - offset_y - row) / fade)))
+        for row in range(height)
+    )
+    return Image.frombytes("L", (1, height), values).resize((width, height), Image.Resampling.NEAREST)
 
 
 class LyricScroll:
@@ -170,4 +182,15 @@ class LyricScroll:
                 overlay.alpha_composite(bar, dest=(round(placed["x"]), round(placed["y"])))
             else:
                 draw_text(overlay, block["text"], placed, opacity=alpha, line_colors=block["colors"])
-        composite_element(image, overlay, self.element)
+        mask = None
+        if self.settings["edge_fade_px"] > 0:
+            left, top, right, bottom = rectangle(self.element)
+            visible_width = min(image.width, right) - max(0, left)
+            visible_height = min(image.height, bottom) - max(0, top)
+            if visible_width <= 0 or visible_height <= 0:
+                return
+            mask = _edge_mask(
+                visible_width, visible_height, self.settings["edge_fade_px"],
+                max(0, top) - top, bottom - top,
+            )
+        composite_element(image, overlay, self.element, alpha_mask=mask)

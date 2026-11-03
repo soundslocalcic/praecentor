@@ -352,14 +352,20 @@ def test_v2_default_lyrics_are_centered_above_an_aligned_bottom_row():
     lyric = elements["lyric_main"]
     assert lyric["x"] + lyric["width"] / 2 == 960
     assert lyric["style"]["align"] == "center"
-    for name in ("chord_main", "riff", "next_chord", "beat_indicator"):
+    for name in ("chord_main", "riff", "next_chord"):
         element = elements[name]
         assert element["y"] == 788
         assert element["height"] == 240
         assert element["y"] + element["height"] / 2 == 908
     assert elements["chord_main"]["x"] + elements["chord_main"]["width"] < elements["next_chord"]["x"]
     assert elements["next_chord"]["x"] + elements["next_chord"]["width"] < elements["beat_indicator"]["x"]
-    assert lyric["y"] + lyric["height"] < 788
+    assert lyric["y"] == 0
+    assert lyric["y"] + lyric["height"] == elements["chord_main"]["y"] + elements["chord_main"]["height"] / 2
+    assert elements["chord_main"]["style"]["align"] == "left"
+    beat = elements["beat_indicator"]
+    assert beat["width"] == beat["height"] == 300
+    assert beat["y"] + beat["height"] / 2 == 908
+    assert config["title"]["elements"]["beat_indicator"] == beat
 
 
 def test_v2_settled_title_lookahead_matches_event_lookahead_pixels(tmp_path):
@@ -381,6 +387,22 @@ def test_v2_settled_title_lookahead_matches_event_lookahead_pixels(tmp_path):
     expected = Image.new("RGBA", (1920, 1080))
     v2._next_chord(expected, event, "Bb", 0.25)
     assert ImageChops.difference(frames[-1], expected).getbbox(alpha_only=False) is None
+
+
+def test_v2_title_beat_indicator_uses_the_same_appearance_and_clock(tmp_path):
+    config = {"version": 2, "title": {"elements": {
+        name: {"enabled": name == "beat_indicator"} for name in TITLE_ELEMENTS
+    }}}
+    frames = []
+    v2.render_title_countdown_frames(
+        layout_data=config, output_dir=tmp_path, fps=2, countdown_beats=1, beats_per_bar=3,
+        background_is_transparent=True, frame_sink=lambda image, index: frames.append(image.copy()),
+    )
+    element = validate_layout_config(config)["song"]["elements"]["beat_indicator"]
+    expected = Image.new("RGBA", (1920, 1080))
+    v2._beat(expected, element, 0.5, 1, None, None, 0, 3)
+    assert ImageChops.difference(frames[1], expected).getbbox(alpha_only=False) is None
+    assert frames[0].tobytes() != frames[1].tobytes()
 
 
 def test_v2_oversized_warning_gap_cannot_draw_text_outside_the_element():
