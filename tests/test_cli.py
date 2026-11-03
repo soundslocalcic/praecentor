@@ -1,5 +1,5 @@
 from __future__ import annotations
-
+from praecentor import __version__
 import click
 from click.testing import CliRunner
 
@@ -27,4 +27,4 @@ def test_cli_exposes_version_flag() -> None:
     result = CliRunner().invoke(main, ["--version"])
 
     assert result.exit_code == 0
-    assert "0.1.0" in result.output
+    assert __version__ in result.output
