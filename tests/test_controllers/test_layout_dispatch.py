@@ -44,22 +44,32 @@ def test_title_dispatch_uses_v2_root_config(monkeypatch):
         layout.render_title_countdown_frames(layout_data={"version": 2}, title_layout={})
 
 
-@pytest.mark.parametrize("call", [
-    lambda: layout.render_cue_frames(layout_data={"version": 2}),
-    lambda: layout.render_title_countdown_frames(layout_data={"version": 2}),
-    lambda: layout.build_background_layer_renderer(layout_data={"version": 2}),
-])
-def test_v2_never_silently_renders_through_v1(call):
-    with pytest.raises(ControllerError, match="not implemented yet"):
-        call()
+def test_v2_never_silently_renders_through_v1(tmp_path, monkeypatch):
+    def forbidden(**kwargs):
+        raise AssertionError("v2 must not call a v1 frame renderer")
+    monkeypatch.setattr(v1, "render_cue_frames", forbidden)
+    monkeypatch.setattr(v1, "render_title_countdown_frames", forbidden)
+    frames = []
+    result = layout.render_cue_frames(
+        layout_data={"version": 2}, output_dir=tmp_path, fps=1,
+        song_events=[{}], event_starts_seconds=[0], tail_seconds=1,
+        frame_sink=lambda image, index: frames.append(image.copy()),
+    )
+    assert result["frame_count"] == 1
+    assert frames[0].getbbox() is None
+    result = layout.render_title_countdown_frames(
+        layout_data={"version": 2}, output_dir=tmp_path, fps=1, countdown_beats=1,
+        frame_sink=lambda image, index: None,
+    )
+    assert result["frame_count"] == 1
 
 
-def test_controller_rejects_v2_before_audio_or_frame_work(tmp_path, monkeypatch):
+def test_controller_accepts_v2_before_validating_song_timing(tmp_path, monkeypatch):
     song = tmp_path / "song.yaml"
     song.write_text("events: []\n", encoding="utf-8")
     monkeypatch.setattr(rendering, "resolve_layout_path", lambda path: tmp_path / "layout.yaml")
     monkeypatch.setattr(rendering, "load_layout_config", lambda path: {"version": 2})
-    with pytest.raises(ControllerError, match="not implemented yet"):
+    with pytest.raises(ControllerError, match="missing timing mapping"):
         rendering.render(song)
 
 

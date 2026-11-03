@@ -25,7 +25,7 @@ from praecentor.audio import (
     analyze_click_track_grid_from_audio,
     infer_beat_seconds_from_beats,
 )
-from praecentor.io.layout import load_layout_config, resolve_layout_path
+from praecentor.io.layout import layout_version, load_layout_config, resolve_layout_path
 from praecentor.io.song import SongConfigError, load_yaml_file
 from praecentor.io.tap_map import load_beat_tap_map, load_tap_map
 from praecentor.render.layout import (
@@ -3027,6 +3027,8 @@ def render(
         if isinstance(layout_data.get("video"), dict)
         else {}
     )
+    if layout_version(layout_data) == 2:
+        video_cfg = {**layout_data["canvas"], "fps": MAX_RENDER_FPS, "background": layout_data["background"]}
     width = int(video_cfg.get("width", 1920))
     height = int(video_cfg.get("height", 1080))
     requested_fps = int(video_cfg.get("fps", MAX_RENDER_FPS))

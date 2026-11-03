@@ -72,9 +72,9 @@ The title, cue and background implementations remain in their original render
 modules and must retain v1 semantics when a separate v2 renderer is introduced.
 
 During this rollout stage, unversioned layouts still use v1, as do layouts
-declaring ``version: 1``. Explicit v2 schemas and version dispatch are available,
-but v2 frame rendering is a separate next phase. The eventual strict v2 default
-is a later coordinated cutover, not part of this rollout stage.
+declaring ``version: 1``. Explicit v2 schemas, version dispatch and v2 drawing
+are available. The eventual strict v2 default is a later coordinated cutover,
+not part of this rollout stage.
 
 V1 retains its original inferred regions and region-fitted text. Partial
 typography/region mappings are not deep-merged with element presets, and the
@@ -148,8 +148,10 @@ chord sizes. We will jointly tune and approve the default composition later.
 
 In v2 all text sizes are maxima: drawing must shrink text only when needed to
 fit and must never enlarge it to fill a region. This is intentionally different
-from v1's region-fitted text. Drawing is implemented in the next phase; validation
-does not claim to have measured text or approved a layout's appearance.
+from v1's region-fitted text. Drawing measures actual glyph bounds, including
+mixed-font musical accidentals and multiline spacing, then shrinks only when
+needed. A text block that cannot fit even at one pixel is not drawn. Validation
+alone does not claim to have measured text or approved a layout's appearance.
 
 Per-element appearance and behaviour
 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
@@ -218,6 +220,48 @@ title/cue modules remain frozen v1 implementations, not version autodetectors.
 The controller and version-aware frame calls select only by the explicit
 integer version (no bools, strings or floats). Missing version still selects
 v1 during this rollout, without guessing from field names. Explicit v2 calls
-validate their schema and currently fail with a clear "v2 frame rendering is
-not implemented yet" error, rather than producing v1 output. Future cutover
-will change the missing-version default to v2 and reject legacy-shaped files.
+validate their schema and use ``praecentor.render.v2``, never the v1 frame
+renderer. Future cutover will change the missing-version default to v2 and
+reject legacy-shaped files.
+
+V2 drawing behaviour
+~~~~~~~~~~~~~~~~~~~~~
+
+V2 outputs 1920x1080 frames. The controller uses 24 fps and shares the normal
+audio/tap-map, beat analysis, section selection, encoding and muxing pipeline.
+Direct frame calls may use another positive integer frame rate for inspection
+but must retain the fixed canvas dimensions. Each emitted frame invokes the
+progress callback once; calls can write PNGs or send frames to a frame sink.
+
+Elements paint in their map order. Each element's drawing, including rings,
+warnings, pulse effects and riffs, is clipped to its own rectangle and the
+canvas. There is no implicit wash image, gutter or geometry derived from a
+neighbouring element. ``align`` and ``valign`` place fitted text inside its
+rectangle. Negative/off-canvas positions are cropped, not moved back on screen.
+
+Song content still determines visibility. Chords carry forward until changed
+or explicitly cleared. When an included riff is active, it replaces the
+current-chord display; omitting the riff element leaves chords available.
+Explicit riff pre/post-roll settings and the beat grid control its timing.
+Next-chord lookahead honours explicit silence, repeated-chord loop symbols,
+warning flashes and its configured beat window. Decorations never enlarge
+their owning element's rectangle. Warning flashing does not change text fit.
+
+The lyric element displays lyrics or instruction text. When a later distinct
+line exists, its own rectangle is split into current/preview rows using
+``preview_margin_px``. Preview opacity and scrolling use that element's
+behaviour plus the song's lyric lead-in; they do not depend on other elements.
+Part colours apply to the corresponding lyric lines. Postlude retains the last
+visible lyric and current chord, and keeps the beat clock only when requested.
+
+For backgrounds, use ``build_background_layer_renderer(layout_data=...,
+layout_path=..., width=1920, height=1080)`` from the version-aware render module
+and pass its ``next_frame`` as ``background_frame_provider`` to direct frame
+calls. Close the background renderer afterwards if it is not None. The main
+controller manages this lifetime automatically. Stored ``media`` IDs must be
+resolved to file paths by the application before drawing; no upload is fetched
+or modified by Praecentor. A solid background needs no provider.
+
+The complete schema example is still illustrative, not the approved default
+v2 layout. Sample-preview tooling and joint default-layout tuning are the next
+roadmap step; no default composition is frozen by this drawing implementation.

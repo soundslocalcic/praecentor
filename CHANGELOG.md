@@ -10,7 +10,8 @@ All notable changes to Praecentor are documented here.
 ### Added
 - Deterministic Inter reference frames, region/font measurements and legacy layout regression checks.
 - Strict v2 layout validation for explicit 1920x1080 pixel rectangles, unique elements, style/appearance settings and immutable normalization, with minimal/complete examples.
-- Version-aware loading and direct frame entry points. Explicit v2 rendering fails clearly until the v2 drawing implementation is available; unversioned layouts still use frozen v1 during rollout.
+- Version-aware loading and direct frame entry points; unversioned layouts still use frozen v1 during rollout.
+- V2 title/cue/postlude rendering with explicit pixel geometry, shrink-only glyph fitting, clipped decorations, background layers, and shared song/beat timing. Includes mixed accidentals, lyric previews, riff transitions and real encoder integration checks.
 
 ## [2026.3.0] - 2026-11-02
 
