@@ -62,6 +62,9 @@ song:
       height: 240
       style:
         size_px: 132
+      appearance:
+        loop:
+          icon_scale: 0.9
     beat_indicator:
       x: 1600
       y: 54

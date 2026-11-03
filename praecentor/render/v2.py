@@ -12,6 +12,7 @@ from PIL import Image, ImageDraw
 from praecentor.io.layout_v2 import CANVAS_HEIGHT, CANVAS_WIDTH, enabled_elements, validate_layout_config
 from praecentor.io.song import SongConfigError
 from praecentor.render import background_layers, cue_frames as state
+from praecentor.render.lyrics_v2 import LyricScroll
 from praecentor.render.text_v2 import composite_element, draw_text, rectangle
 
 
@@ -148,23 +149,6 @@ def _beat(image, element, beat_time, beat_seconds, beat_times, bar_times, anchor
     composite_element(image, overlay, element)
 
 
-def _lyrics(image, element, current, upcoming, progress, colors, upcoming_colors):
-    if not upcoming:
-        draw_text(image, current, element, line_colors=colors)
-        return
-    settings = element["behavior"]
-    gap = min(settings["preview_margin_px"], max(0, element["height"] - 2))
-    row_height = (element["height"] - gap) / 2
-    shift = (row_height + gap) * progress
-    overlay = Image.new("RGBA", image.size)
-    first = {**element, "y": element["y"] - shift, "height": row_height}
-    second = {**element, "y": element["y"] + row_height + gap - shift, "height": row_height}
-    draw_text(overlay, current, first, line_colors=colors)
-    alpha = settings["preview_opacity"] + (1 - settings["preview_opacity"]) * progress
-    draw_text(overlay, upcoming, second, opacity=alpha, line_colors=upcoming_colors)
-    composite_element(image, overlay, element)
-
-
 def render_title_countdown_frames(
     *, layout_data, output_dir, width=1920, height=1080, fps=24, title_text="", artist_text="",
     key_text="", hot_start=False, countdown_beats=4, beat_seconds=1.0, countdown_start_number=None,
@@ -253,9 +237,6 @@ def render_cue_frames(
     )
     chords = state._effective_chords_for_all(song_events)
     riffs = state._effective_riffs_for_all(song_events)
-    displays = state._display_texts_for_all(song_events)
-    last_display = next((index for index in range(len(displays) - 1, -1, -1) if displays[index]), None)
-    next_displays = state._next_display_change_indices(displays)
     next_chords = state._next_non_empty_raw_chord_event_indices(song_events)
     next_lookahead = state._next_lookahead_event_indices(song_events, chords)
     next_riffs = state._next_riff_indices(riffs)
@@ -265,6 +246,11 @@ def render_cue_frames(
         split_a_color=state._hex_to_rgb(lyric["style"]["split_a_color"]),
         split_c_color=state._hex_to_rgb(lyric["style"]["split_c_color"]),
     ) if lyric else [{} for _event in song_events]
+    scroll = LyricScroll(
+        lyric, song_events, starts, tail_seconds, colors, beat_seconds=beat_seconds,
+        beat_times=beat_times_seconds, time_origin=time_origin_seconds, anchors=anchors, meters=meters,
+        lead_in_beats=lyric_lead_in_beats, postlude_seconds=postlude_seconds, fps=fps,
+    ) if lyric else None
     notes, pitch_min, pitch_max = state._build_riff_timeline(
         song_events=song_events, effective_riffs=riffs, event_starts_seconds=starts,
         tail_seconds=tail_seconds, time_origin_seconds=time_origin_seconds, beat_seconds=beat_seconds,
@@ -312,18 +298,7 @@ def render_cue_frames(
                 )
             for name, element in elements.items():
                 if name == "lyric_main":
-                    display_index = last_display if postlude else index
-                    next_index = None if postlude else next_displays[index]
-                    upcoming = displays[next_index] if next_index is not None else ""
-                    window = element["behavior"]["scroll_preview_beats"] * beat_seconds
-                    trigger = (starts[next_index] - lyric_lead_in_beats * beat_seconds
-                               if next_index is not None else now + window)
-                    progress = max(0, min(1, (now - trigger + window) / window)) if upcoming else 0
-                    _lyrics(
-                        image, element, displays[display_index] if display_index is not None else "",
-                        upcoming, progress, colors[display_index] if display_index is not None else {},
-                        colors[next_index] if next_index is not None else {},
-                    )
+                    scroll.draw(image, now, index)
                 elif name == "chord_main" and not riff_mode:
                     draw_text(image, chords[index], element, normalize_flats=True)
                 elif name == "riff" and riff_mode and pitch_min is not None and pitch_max is not None:

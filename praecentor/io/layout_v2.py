@@ -55,7 +55,10 @@ APPEARANCE = {
 }
 BEHAVIOR = {
     "metadata_text": {"show_artist": True, "show_key": True, "show_hot_start": True},
-    "lyric_main": {"scroll_preview_beats": 3.0, "preview_opacity": 0.5, "preview_margin_px": 24},
+    "lyric_main": {
+        "scroll_preview_beats": 3.0, "preview_opacity": 0.5, "outgoing_opacity": 0.25,
+        "preview_margin_px": 24, "entrance_beats": 0.0, "exit_beats": 1.0,
+    },
     "next_chord": {"lookahead_beats": 4.0},
     "first_chord_preview": {"slide_beats": 1.0, "slide_lead_beats": 1.0},
 }
@@ -63,7 +66,7 @@ POSITIVE_SETTINGS = {
     "size_px", "line_height", "viewport_beats", "note_height_ratio", "icon_scale",
     "dash_degrees", "scroll_preview_beats", "slide_beats", "lookahead_beats",
 }
-UNIT_SETTINGS = {"center_fraction", "note_height_ratio", "preview_opacity", "flash_duty_cycle"}
+UNIT_SETTINGS = {"center_fraction", "note_height_ratio", "preview_opacity", "outgoing_opacity", "flash_duty_cycle"}
 
 
 def _mapping(value: Any, path: str, allowed) -> dict[str, Any]:

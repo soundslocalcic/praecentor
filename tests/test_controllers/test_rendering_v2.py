@@ -13,6 +13,7 @@ from praecentor.io.song import SongConfigError
 from praecentor.render import v2
 from praecentor.render.text_v2 import draw_text, fit_text
 from praecentor.render import text_v2
+from praecentor.render import lyrics_v2
 
 
 def text_element(**overrides):
@@ -318,11 +319,13 @@ def test_v2_lookahead_preserves_explicit_silence(tmp_path, monkeypatch):
 
 
 def test_v2_postlude_keeps_last_visible_lyric(tmp_path, monkeypatch):
-    draw = Mock(wraps=v2._lyrics)
-    monkeypatch.setattr(v2, "_lyrics", draw)
-    render_cues(tmp_path, sample_config(), song_events=[{"lyric": "Retained line"}, {"chords": "G"}],
+    draw = Mock(wraps=lyrics_v2.draw_text)
+    monkeypatch.setattr(lyrics_v2, "draw_text", draw)
+    config = sample_config()
+    config["song"]["elements"]["lyric_main"]["behavior"]["exit_beats"] = 0
+    render_cues(tmp_path, config, song_events=[{"lyric": "Retained line"}, {"chords": "G"}],
                 event_starts_seconds=[0, 1])
-    assert draw.call_args.args[2] == "Retained line"
+    assert draw.call_args.args[1] == "Retained line"
 
 
 def test_v2_warning_flashing_does_not_change_text_geometry(monkeypatch):
@@ -332,6 +335,15 @@ def test_v2_warning_flashing_does_not_change_text_geometry(monkeypatch):
     for now in (0, 0.3):
         v2._next_chord(Image.new("RGBA", (1920, 1080)), element, "Bb", 0.5, warning=True, at_seconds=now)
     assert draw.call_args_list[0].args[2] == draw.call_args_list[1].args[2]
+
+
+def test_v2_default_loop_icon_is_half_the_ring_footprint(monkeypatch):
+    element = validate_layout_config({"version": 2})["song"]["elements"]["next_chord"]
+    icon = Mock(wraps=v2.state._loop_icon_image)
+    monkeypatch.setattr(v2.state, "_loop_icon_image", icon)
+    v2._next_chord(Image.new("RGBA", (1920, 1080)), element, "", 1, loop=True)
+    assert 115 <= icon.call_args.args[0] <= 125
+    assert element["width"] == element["height"] == 240
 
 
 def test_v2_oversized_warning_gap_cannot_draw_text_outside_the_element():

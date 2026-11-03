@@ -184,8 +184,8 @@ Additional nested settings are supported only on the following elements:
 
 - ``metadata_text.behavior``: boolean ``show_artist``, ``show_key`` and
   ``show_hot_start`` flags, all defaulting to true.
-- ``lyric_main.behavior``: ``scroll_preview_beats``, ``preview_opacity`` and
-  ``preview_margin_px``.
+- ``lyric_main.behavior``: ``scroll_preview_beats``, ``preview_opacity``,
+  ``outgoing_opacity``, ``preview_margin_px``, ``entrance_beats`` and ``exit_beats``.
 - ``next_chord.appearance``: ``ring``, ``warning`` and ``loop`` mappings.
   ``next_chord.behavior.lookahead_beats`` controls the lookahead window.
 - ``first_chord_preview.appearance``: ``padding_px`` and ``ring``.
@@ -280,12 +280,37 @@ rectangle. Warning flashing does not change text fit.
 The beat pie removes elapsed fill clockwise from twelve o'clock. The unfilled
 area is transparent, revealing the layout background rather than a black disc.
 
-The lyric element displays lyrics or instruction text. When a later distinct
-line exists, its own rectangle is split into current/preview rows using
-``preview_margin_px``. Preview opacity and scrolling use that element's
-behaviour plus the song's lyric lead-in; they do not depend on other elements.
-Part colours apply to the corresponding lyric lines. Postlude retains the last
-visible lyric and current chord, and keeps the beat clock only when requested.
+The lyric element displays a continuous measured scroll of distinct lyric or
+short-instruction blocks. Each block fits against the full lyric rectangle,
+not a half-height preview box. Its actual glyph height determines its space in
+the scroll, with ``preview_margin_px`` (default 24px) between blocks. Duplicate
+consecutive display text and chord-only events do not restart or clear it.
+
+The active block is vertically centred between transitions. Outgoing text may
+remain partially visible above, and future blocks may be clipped below; the
+renderer does not shrink everything merely to show a complete preview. Only
+blocks intersecting the viewport are drawn, using the bounded glyph caches,
+rather than allocating one giant bitmap for the entire song.
+
+During the final ``scroll_preview_beats`` (default 3) before a new display event,
+the scroll eases to the next block's centre. Song lyric lead-in can extend the
+transition window; arrival remains aligned with the actual cue time. Default
+text colour is white, active opacity is 100%, upcoming opacity is 50% via
+``preview_opacity``, and outgoing opacity is 25% via ``outgoing_opacity``.
+During a transition the outgoing block fades towards 25% and the incoming
+block towards 100%, without a jump at the event boundary. Explicit text/part
+colours remain supported.
+
+``entrance_beats`` defaults to zero for an immediately centred first block;
+set it above zero to scroll the beginning into view. ``exit_beats`` defaults
+to one beat, scrolling the final block off the viewport at the end of the cue
+timeline plus postlude; set it to zero to retain the final lyric. Long Intro,
+Break and Outro windows use the v1 beat-duration threshold and show a centred
+progress bar instead of the scroll. The scroll resumes as a new segment after
+the break. The final outro's progress window includes the postlude. These
+calculations are internal to the lyric element and do not depend on other
+elements' rectangles. Chords persist during postlude and the beat clock stays
+only when requested.
 
 Fitted text layouts and small glyph sprites use bounded caches. Moving or
 fading unchanged text reuses its fit/rasterisation; cache keys retain geometry,
@@ -350,7 +375,7 @@ layer stack, set it in your YAML and pass that layout file instead. ``--show``
 is opt-in and uses Pillow Image.show(); a desktop viewer may be unavailable
 in Docker or CI, so saved PNGs are the portable output.
 
-Samples are ``title``, ``countdown``, ``lyrics``, ``instruction``,
+Samples are ``title``, ``countdown``, ``lyrics``, ``lyrics-long``, ``instruction``,
 ``chords-short``, ``chords-long``, ``accidentals``, ``riff``, ``warning`` and
 ``beat``. ``all`` creates a two-column labelled contact sheet plus all original
 frames. Guide overlays group coincident rectangles, such as chords/riffs, and

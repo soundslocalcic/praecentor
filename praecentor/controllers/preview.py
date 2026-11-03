@@ -17,7 +17,7 @@ from praecentor.io.song import SongConfigError
 from praecentor.render import cue_frames as fonts, v2
 
 SAMPLES = (
-    "title", "countdown", "lyrics", "instruction", "chords-short",
+    "title", "countdown", "lyrics", "lyrics-long", "instruction", "chords-short",
     "chords-long", "accidentals", "riff", "warning", "beat",
 )
 
@@ -72,7 +72,16 @@ def _font_report(config):
 def _sample_inputs(sample):
     current = {"lyric": "We gather in the evening\nAnd sing another song", "chords": "Am, C, F, Bb"}
     upcoming = {"lyric": "The voices rise together\nThe rhythm carries on", "chords": "G"}
-    if sample == "instruction":
+    if sample == "lyrics-long":
+        current["lyric"] = (
+            "We gather as the evening falls\nAnd let the room fill with sound\n"
+            "One voice becomes a rising chorus\nAnother song goes round and round"
+        )
+        upcoming["lyric"] = (
+            "The next event has more to say\nIts words can wait below the view\n"
+            "We keep the active verse in place\nAnd leave the coming lines some space\nUntil their moment comes around"
+        )
+    elif sample == "instruction":
         current = {"instruction": "Instrumental", "chords": "C"}
     elif sample == "chords-short":
         current["chords"] = "C"

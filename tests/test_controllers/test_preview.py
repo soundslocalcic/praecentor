@@ -35,7 +35,7 @@ def test_preview_generates_all_renderer_samples_and_full_size_frames(tmp_path, i
             assert image.size == (1920, 1080)
             assert image.getextrema()[0][1] > 100
     with Image.open(result["output"]) as sheet:
-        assert sheet.size == (1280, 1960)
+        assert sheet.size == (1280, ((len(preview.SAMPLES) + 1) // 2) * 392)
     report = json.loads(Path(result["metadata_file"]).read_text())
     assert report["layout_file"] == str(DEFAULT_LAYOUT_PATH)
     encoder.assert_not_called()

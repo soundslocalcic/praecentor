@@ -124,7 +124,7 @@ praecentor preview-layout my-layout.yaml --sample lyrics --guides --show
 
 With no layout argument, this uses the packaged [all-elements draft](praecentor/assets/layouts/default-v2.yaml).
 The draft is for joint visual tuning, not yet the approved default composition.
-The default `--sample all` produces a labelled contact sheet, ten full-size frames
+The default `--sample all` produces a labelled contact sheet, a full-size frame per sample
 and a JSON report of selected fonts. `--show` explicitly opens the saved PNG in
 a desktop viewer; omit it for Docker/headless use. Included text requires Inter
 rather than a silent substitute. V2 layout YAML overrides the shared template:
