@@ -25,12 +25,12 @@ from praecentor.audio import (
     analyze_click_track_grid_from_audio,
     infer_beat_seconds_from_beats,
 )
-from praecentor.io.layout import resolve_layout_path
+from praecentor.io.layout import load_layout_config, resolve_layout_path
 from praecentor.io.song import SongConfigError, load_yaml_file
 from praecentor.io.tap_map import load_beat_tap_map, load_tap_map
-from praecentor.render.v1 import (
+from praecentor.render.layout import (
     build_background_layer_renderer,
-    load_layout_config,
+    ensure_rendering_supported,
     render_cue_frames,
     render_title_countdown_frames,
 )
@@ -2356,6 +2356,7 @@ def render(
             layout_file if layout_file is not None else song_layout_file
         )
         layout_data = load_layout_config(resolved_layout_path)
+        ensure_rendering_supported(layout_data)
     except SongConfigError as exc:
         raise ControllerError(str(exc)) from exc
 
@@ -3445,6 +3446,7 @@ def render(
 
     try:
         background_layer_renderer = build_background_layer_renderer(
+            layout_data=layout_data,
             background_config=background,
             layout_path=resolved_layout_path,
             width=width,
@@ -3534,9 +3536,7 @@ def render(
                         hot_start=hot_start,
                         countdown_beats=rendered_countdown_beats,
                         beat_seconds=final_beat_seconds,
-                        title_layout=(
-                            title_cfg if isinstance(title_cfg, dict) else {}
-                        ),
+                        layout_data=layout_data,
                         countdown_start_number=effective_countdown_beats,
                         first_chord_preview_text=first_event_chord_preview,
                         first_chord_preview_lead_beats=title_first_chord_preview_lead_beats,  # NOQA E501

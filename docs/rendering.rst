@@ -72,8 +72,9 @@ The title, cue and background implementations remain in their original render
 modules and must retain v1 semantics when a separate v2 renderer is introduced.
 
 During this rollout stage, unversioned layouts still use v1, as do layouts
-declaring ``version: 1``. Version dispatch and the eventual strict v2 default
-are separate later steps; v2 is not implemented by this change.
+declaring ``version: 1``. Explicit v2 schemas and version dispatch are available,
+but v2 frame rendering is a separate next phase. The eventual strict v2 default
+is a later coordinated cutover, not part of this rollout stage.
 
 V1 retains its original inferred regions and region-fitted text. Partial
 typography/region mappings are not deep-merged with element presets, and the
@@ -95,3 +96,128 @@ but the pixel-reference test is skipped. Different Pillow/FreeType versions
 skip exact pixel comparison after the measurement checks. Do not regenerate
 references to make a v1 behavioural change pass; these are the frozen baseline,
 not approval of the future v2 default layout.
+
+V2 layout contract
+-------------------
+
+V2 uses an absolute 1920x1080 pixel canvas. Its root fields are ``version``,
+``canvas``, ``background``, ``title``, and ``song``. Unknown fields are errors;
+legacy ``video``, ``regions``, ``typography``, ``render`` and ``components``
+settings must be converted, not relabelled as v2. Song-file version and
+layout-file version are separate values.
+
+Minimal valid layout (empty canvases, no foreground elements):
+
+.. literalinclude:: ../tests/fixtures/layout_v2/minimal.yaml
+   :language: yaml
+
+``canvas`` may be omitted, but if specified its dimensions must be 1920x1080.
+Omitted title/song sections mean empty element maps. No element is implicitly
+created. ``title.enabled`` defaults to true; optional ``title.countdown_beats``
+must be a non-negative integer. A YAML mapping may not repeat any key in v2.
+
+``title.elements`` supports ``title_text``, ``metadata_text``, ``countdown_text``
+and ``first_chord_preview``. ``song.elements`` supports ``lyric_main``,
+``chord_main``, ``next_chord``, ``beat_indicator`` and ``riff``. Elements are
+keyed by name and may occur once on their respective canvas. Each included
+element must supply all four of ``x``, ``y``, ``width`` and ``height`` directly
+on the element mapping. There are no geometry defaults or cross-element
+inferences.
+
+Coordinates are finite numbers in pixels: ``0.5`` means half a pixel, not half
+the canvas. Width and height must be positive. Percentage strings, booleans,
+NaN and infinities are invalid. Negative coordinates and rectangles extending
+outside the canvas are allowed and preserved for intentional cropping; the
+validator does not silently clamp or reposition them. Text fitting concerns
+the element rectangle, not its visible intersection with the output canvas.
+
+Text elements accept a nested ``style`` mapping. Its supported fields are
+``font_family`` (currently Inter only), ``weight`` (300, 400, 500, 600, 700 or
+800), ``size_px`` (positive), ``color`` (#RGB or #RRGGBB), ``align``
+(left/center/right), ``valign`` (top/center/bottom), ``line_height`` (positive
+ratio), and ``letter_spacing_em`` (-1 to 1). The lyric style also supports
+``split_a_color``, ``split_b_color`` and ``split_c_color``.
+
+Style defaults use Inter, weight 700, white, centred alignment in both axes,
+line height 1 and zero letter spacing. Title weight defaults to 800, metadata
+colour to #D9D9D9 and next-chord colour to #FF9F1C. Default sizes are 78, 42,
+72 and 48 for title/metadata/countdown/first-chord preview; 94, 76 and 64 for
+lyrics/current chord/next chord. These are schema fallback values, not the
+future default v2 composition. The complete example explicitly sets larger
+chord sizes. We will jointly tune and approve the default composition later.
+
+In v2 all text sizes are maxima: drawing must shrink text only when needed to
+fit and must never enlarge it to fill a region. This is intentionally different
+from v1's region-fitted text. Drawing is implemented in the next phase; validation
+does not claim to have measured text or approved a layout's appearance.
+
+Per-element appearance and behaviour
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Additional nested settings are supported only on the following elements:
+
+- ``metadata_text.behavior``: boolean ``show_artist``, ``show_key`` and
+  ``show_hot_start`` flags, all defaulting to true.
+- ``lyric_main.behavior``: ``scroll_preview_beats``, ``preview_opacity`` and
+  ``preview_margin_px``.
+- ``next_chord.appearance``: ``ring``, ``warning`` and ``loop`` mappings.
+  ``next_chord.behavior.lookahead_beats`` controls the lookahead window.
+- ``first_chord_preview.appearance``: ``padding_px`` and ``ring``.
+  Its ``behavior`` supports ``slide_beats`` and ``slide_lead_beats``.
+- ``beat_indicator.appearance``: ``fill_color``, ``pulse_first_color``,
+  ``pulse_other_color``, ``pulse_expand_px`` and ``pulse_width_px``.
+- ``riff.appearance``: ``viewport_beats``, ``center_fraction``,
+  ``pre_roll_beats``, ``post_roll_beats``, ``lane_gap_px``,
+  ``note_side_margin_px``, ``note_height_ratio``, ``lane_color``, ``note_color``,
+  ``active_note_color``, ``playhead_color`` and ``playhead_width_px``.
+
+Ring settings are ``enabled``, ``color``, ``width_px``, ``padding_px``,
+``dotted``, ``dash_degrees`` and ``gap_degrees``. Warning settings are
+``enabled``, ``color``, ``icon_scale``, ``gap_px``, ``flash_hz`` and
+``flash_duty_cycle``. Loop settings are ``icon_scale`` and ``y_offset_px``.
+These are decorations of their owning element, not references to another
+element's rectangle. There is no inferred pre-roll or ring size ratio in v2.
+
+Opacity/fraction/duty-cycle settings are bounded by 0 and 1; counts, gaps,
+padding and durations are non-negative. Text sizes, line height, viewport
+beats, note height, icon scale, dash angle, scroll/slide duration and lookahead
+window must be greater than zero. Nested settings merge with their own style
+defaults without changing geometry or mutating the caller's data.
+
+Backgrounds and complete example
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+``background`` has a colour (default black) and an ordered ``layers`` list.
+Each image layer requires ``type: image`` and exactly one non-empty ``file``
+or ``media`` reference. ``file`` is a layout-relative or absolute image path;
+``media`` is a stored upload ID to be resolved by the application before
+rendering. ``opacity`` defaults to 1 and must be between 0 and 1. Validation
+does not fetch uploads or rewrite references to temporary paths.
+
+This example exercises every supported element. Its coordinates and font
+sizes are illustrative, not the approved default v2 layout. It uses a
+placeholder background path and is not a request to render a real song:
+
+.. literalinclude:: ../tests/fixtures/layout_v2/complete.yaml
+   :language: yaml
+
+Versioned Python entry points
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Use ``praecentor.io.layout.load_layout_config(path)`` for YAML loading or
+``resolve_layout_config(mapping)`` for in-memory validation. Both return
+separate mappings; neither writes defaults into the input or a file.
+
+Use ``praecentor.render.layout.render_cue_frames(layout_data=..., ...)`` and
+``render_title_countdown_frames(layout_data=..., ...)`` for version-aware
+direct frame calls. Pass the full root layout, not just its title subsection,
+when selecting v2. Legacy ``title_layout=...`` calls remain supported as v1.
+The explicitly legacy ``praecentor.render.v1`` entry point and the original
+title/cue modules remain frozen v1 implementations, not version autodetectors.
+
+The controller and version-aware frame calls select only by the explicit
+integer version (no bools, strings or floats). Missing version still selects
+v1 during this rollout, without guessing from field names. Explicit v2 calls
+validate their schema and currently fail with a clear "v2 frame rendering is
+not implemented yet" error, rather than producing v1 output. Future cutover
+will change the missing-version default to v2 and reject legacy-shaped files.

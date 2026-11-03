@@ -1,0 +1,125 @@
+version: 2
+canvas:
+  width: 1920
+  height: 1080
+background:
+  color: "#101010"
+  layers:
+    - type: image
+      file: background.png
+      opacity: 0.5
+title:
+  enabled: true
+  countdown_beats: 4
+  elements:
+    title_text:
+      x: 192
+      y: 162
+      width: 1536
+      height: 216
+      style:
+        size_px: 78
+    metadata_text:
+      x: 192
+      y: 432
+      width: 1536
+      height: 238
+      style:
+        size_px: 42
+    countdown_text:
+      x: 864
+      y: 810
+      width: 192
+      height: 108
+      style:
+        size_px: 72
+    first_chord_preview:
+      x: 1600
+      y: 788
+      width: 240
+      height: 240
+      style:
+        size_px: 96
+      appearance:
+        padding_px: 18
+        ring:
+          dotted: true
+      behavior:
+        slide_beats: 1
+        slide_lead_beats: 1
+song:
+  elements:
+    lyric_main:
+      x: 20
+      y: 0
+      width: 1520
+      height: 760
+      style:
+        size_px: 94
+        align: left
+        split_a_color: "#ADFFDA"
+        split_b_color: "#F7E6D8"
+        split_c_color: "#E8DFF7"
+      behavior:
+        preview_opacity: 0.5
+        scroll_preview_beats: 3
+        preview_margin_px: 24
+    chord_main:
+      x: 54
+      y: 788
+      width: 1498
+      height: 259
+      style:
+        size_px: 144
+        letter_spacing_em: -0.05
+        valign: center
+    next_chord:
+      x: 1600
+      y: 788
+      width: 240
+      height: 240
+      style:
+        size_px: 96
+      appearance:
+        ring:
+          width_px: 6
+          padding_px: 0
+          dotted: true
+        warning:
+          icon_scale: 1.8
+          flash_hz: 2.5
+          flash_duty_cycle: 0.5
+        loop:
+          icon_scale: 3
+          y_offset_px: -5
+      behavior:
+        lookahead_beats: 4
+    beat_indicator:
+      x: 1600
+      y: 54
+      width: 259
+      height: 259
+      appearance:
+        fill_color: "#72E676"
+        pulse_first_color: "#72E676"
+        pulse_other_color: "#3B82F6"
+        pulse_expand_px: 28
+        pulse_width_px: 5
+    riff:
+      x: 54
+      y: 788
+      width: 1498
+      height: 259
+      appearance:
+        viewport_beats: 8
+        center_fraction: 0.5
+        pre_roll_beats: 4
+        post_roll_beats: 0
+        lane_gap_px: 12
+        note_side_margin_px: 2
+        note_height_ratio: 0.58
+        lane_color: "#2A2A2A"
+        note_color: "#F5F5F5"
+        active_note_color: "#19FF19"
+        playhead_color: "#FF8000"
+        playhead_width_px: 4
