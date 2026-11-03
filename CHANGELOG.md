@@ -2,9 +2,10 @@
 
 All notable changes to Praecentor are documented here.
 
-## [Unreleased]
+## [2026.4.0] - 2026-11-03
 
 ### Changed
+- Layouts without a `version` now select v2 everywhere, including direct Python frame calls, and renders without a layout file use the packaged v2 default. Unversioned legacy-shaped layouts fail with guidance to add `version: 1` or migrate; explicit `version: 1` keeps the frozen renderer.
 - Freeze the original v1 layout path behind `praecentor.render.v1`, preserving legacy loading, inferred geometry and text fitting while v2 is developed separately.
 
 ### Added

@@ -26,12 +26,19 @@ def test_resolve_layout_path_raises_when_default_missing(
 ) -> None:
     monkeypatch.setattr(
         layout,
-        "DEFAULT_LAYOUT_RELATIVE",
+        "DEFAULT_LAYOUT_PATH",
         Path("does/not/exist/default.yaml"),
     )
 
     with pytest.raises(SongConfigError, match="default layout"):
         layout.resolve_layout_path(None)
+
+
+def test_resolve_layout_path_defaults_to_the_packaged_v2_template() -> None:
+    resolved = layout.resolve_layout_path(None)
+
+    assert resolved.name == "default-v2.yaml"
+    assert layout.load_layout_config(resolved)["version"] == 2
 
 
 def test_load_layout_config_rejects_non_mapping_title(tmp_path: Path) -> None:
@@ -42,10 +49,26 @@ def test_load_layout_config_rejects_non_mapping_title(tmp_path: Path) -> None:
 
 
 def test_layout_version_is_explicit_and_does_not_guess_from_shape() -> None:
-    assert layout.layout_version({}) == 1
+    assert layout.layout_version({}) == 2
     assert layout.layout_version({"version": 1}) == 1
     assert layout.layout_version({"version": 2}) == 2
-    assert layout.layout_version({"song": {"elements": {}}}) == 1
+    assert layout.layout_version({"video": {"width": 1920}}) == 2
+
+
+def test_unversioned_layout_files_load_as_v2(tmp_path: Path) -> None:
+    path = _write(tmp_path / "layout.yaml", "background:\n  color: '#102030'\n")
+    config = layout.load_layout_config(path)
+    assert config["version"] == 2
+    assert config["background"]["color"] == "#102030"
+    assert config["song"]["elements"]["lyric_main"]["enabled"] is True
+
+
+def test_unversioned_legacy_layout_files_fail_with_guidance(tmp_path: Path) -> None:
+    path = _write(tmp_path / "legacy.yaml", "video:\n  width: 1920\n  height: 1080\ntitle: {}\n")
+    with pytest.raises(SongConfigError, match="unsupported field 'video'.*version: 1"):
+        layout.load_layout_config(path)
+    explicit = _write(tmp_path / "explicit.yaml", "version: 1\nvideo:\n  width: 1920\n  height: 1080\n")
+    assert layout.load_layout_config(explicit)["video"]["width"] == 1920
 
 
 @pytest.mark.parametrize("version", [None, True, False, 0, 3, 1.0, "1", "2", [], {}])

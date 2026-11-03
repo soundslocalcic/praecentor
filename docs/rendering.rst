@@ -71,10 +71,10 @@ The legacy layout renderer is frozen against source revision
 The title, cue and background implementations remain in their original render
 modules and must retain v1 semantics when a separate v2 renderer is introduced.
 
-During this rollout stage, unversioned layouts still use v1, as do layouts
-declaring ``version: 1``. Explicit v2 schemas, version dispatch and v2 drawing
-are available. The eventual strict v2 default is a later coordinated cutover,
-not part of this rollout stage.
+Layouts without a ``version`` are v2. Only layouts declaring ``version: 1``
+use this frozen path. An unversioned legacy-shaped layout (for example one
+with ``video`` or ``regions``) fails v2 validation with guidance to add
+``version: 1`` or migrate it; its version is never guessed from its fields.
 
 V1 retains its original inferred regions and region-fitted text. Partial
 typography/region mappings are not deep-merged with element presets, and the
@@ -239,16 +239,16 @@ separate mappings; neither writes defaults into the input or a file.
 Use ``praecentor.render.layout.render_cue_frames(layout_data=..., ...)`` and
 ``render_title_countdown_frames(layout_data=..., ...)`` for version-aware
 direct frame calls. Pass the full root layout, not just its title subsection,
-when selecting v2. Legacy ``title_layout=...`` calls remain supported as v1.
+when selecting v2. Frozen v1 ``title_layout=...`` calls require
+``layout_data={"version": 1}``; without ``layout_data`` the call is v2.
 The explicitly legacy ``praecentor.render.v1`` entry point and the original
 title/cue modules remain frozen v1 implementations, not version autodetectors.
 
 The controller and version-aware frame calls select only by the explicit
-integer version (no bools, strings or floats). Missing version still selects
-v1 during this rollout, without guessing from field names. Explicit v2 calls
-validate their schema and use ``praecentor.render.v2``, never the v1 frame
-renderer. Future cutover will change the missing-version default to v2 and
-reject legacy-shaped files.
+integer version (no bools, strings or floats). A missing version selects v2,
+including direct Python calls, and a render without a layout file uses the
+packaged default template. V2 calls validate their schema and use
+``praecentor.render.v2``, never the v1 frame renderer.
 
 V2 drawing behaviour
 ~~~~~~~~~~~~~~~~~~~~~

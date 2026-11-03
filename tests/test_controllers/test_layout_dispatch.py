@@ -9,13 +9,45 @@ from praecentor.io.song import SongConfigError
 from praecentor.render import layout, v1, v2
 
 
-@pytest.mark.parametrize("config", [{}, {"version": 1}])
-def test_direct_cue_calls_use_frozen_v1(config, monkeypatch):
+def test_direct_cue_calls_with_explicit_v1_use_frozen_v1(monkeypatch):
+    config = {"version": 1}
     render = Mock(return_value={"frame_count": 1})
     monkeypatch.setattr(v1, "render_cue_frames", render)
     assert layout.render_cue_frames(layout_data=config, width=1920) == {"frame_count": 1}
     render.assert_called_once_with(layout_data=config, width=1920)
     assert render.call_args.kwargs["layout_data"] is not config
+
+
+@pytest.mark.parametrize("config", [{}, {"song": {"elements": {}}}])
+def test_direct_cue_calls_without_a_version_use_v2(config, monkeypatch):
+    monkeypatch.setattr(v1, "render_cue_frames", Mock(side_effect=AssertionError("v1 called")))
+    render = Mock(return_value={"frame_count": 1})
+    monkeypatch.setattr(v2, "render_cue_frames", render)
+    layout.render_cue_frames(layout_data=config, width=1920)
+    assert render.call_args.kwargs["layout_data"]["version"] == 2
+
+
+def test_unversioned_legacy_shaped_layouts_fail_with_migration_guidance():
+    with pytest.raises(SongConfigError, match="add 'version: 1'"):
+        layout.render_cue_frames(layout_data={"video": {"width": 1920, "height": 1080}, "title": {}})
+
+
+def test_title_dispatch_preserves_explicit_v1_subsection_calls(monkeypatch):
+    render = Mock(return_value={"frame_count": 1})
+    monkeypatch.setattr(v1, "render_title_countdown_frames", render)
+    layout.render_title_countdown_frames(
+        layout_data={"version": 1}, title_layout={"show_key": False}, width=1920
+    )
+    render.assert_called_once_with(title_layout={"show_key": False}, width=1920)
+
+
+def test_title_dispatch_without_layout_data_uses_v2(monkeypatch):
+    render = Mock(return_value={"frame_count": 1})
+    monkeypatch.setattr(v2, "render_title_countdown_frames", render)
+    layout.render_title_countdown_frames(width=1920)
+    assert render.call_args.kwargs["layout_data"]["version"] == 2
+    with pytest.raises(SongConfigError, match="full layout_data"):
+        layout.render_title_countdown_frames(title_layout={"show_key": False})
 
 
 def test_direct_v2_calls_receive_validated_separate_copies(monkeypatch):
@@ -26,13 +58,6 @@ def test_direct_v2_calls_receive_validated_separate_copies(monkeypatch):
     layout.render_cue_frames(layout_data=config, width=1920)
     assert render.call_args.kwargs["layout_data"]["canvas"]["width"] == 1920
     assert config == original
-
-
-def test_title_dispatch_preserves_legacy_subsection_calls(monkeypatch):
-    render = Mock(return_value={"frame_count": 1})
-    monkeypatch.setattr(v1, "render_title_countdown_frames", render)
-    layout.render_title_countdown_frames(title_layout={"show_key": False}, width=1920)
-    render.assert_called_once_with(title_layout={"show_key": False}, width=1920)
 
 
 def test_title_dispatch_uses_v2_root_config(monkeypatch):

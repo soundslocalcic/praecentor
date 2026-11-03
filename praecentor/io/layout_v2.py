@@ -186,7 +186,15 @@ def enabled_elements(config: dict[str, Any], section: str) -> dict[str, Any]:
 
 
 def validate_layout_config(data: dict[str, Any]) -> dict[str, Any]:
-    raw = _mapping(data, "layout", {"version", "canvas", "background", "title", "song"})
+    root_fields = {"version", "canvas", "background", "title", "song"}
+    if isinstance(data, dict) and "version" not in data:
+        legacy = sorted(str(key) for key in data if key not in root_fields)
+        if legacy:
+            raise SongConfigError(
+                f"layout contains unsupported field {legacy[0]!r}. Layouts without a version are v2; "
+                "add 'version: 1' to render a legacy layout, or migrate it to v2."
+            )
+    raw = _mapping(data, "layout", root_fields)
     version = raw.get("version", 2)
     if type(version) is not int or version != 2:
         raise SongConfigError("layout.version must be the integer 2 for the v2 validator")

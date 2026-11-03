@@ -129,8 +129,8 @@ and a JSON report of selected fonts. `--show` explicitly opens the saved PNG in
 a desktop viewer; omit it for Docker/headless use. Included text requires Inter
 rather than a silent substitute. V2 layout YAML overrides the shared template:
 even `version: 2` alone includes all elements with sensible geometry/styles.
-Hide an element with `enabled: false`, rather than omitting it. Missing layout
-versions still mean v1 during rollout.
+Hide an element with `enabled: false`, rather than omitting it. Layouts without
+a `version` are v2; legacy layouts must declare `version: 1`.
 
 ### Main commands
 

@@ -7,11 +7,12 @@ from typing import Any
 import yaml
 
 from praecentor.io.layout_v1 import load_layout_config as load_v1_layout_config
+from praecentor.io.layout_v2 import DEFAULT_LAYOUT_PATH as DEFAULT_V2_LAYOUT_PATH
 from praecentor.io.layout_v2 import validate_layout_config as validate_v2_layout_config
 from praecentor.io.song import SongConfigError
 
-DEFAULT_LAYOUT_RELATIVE = Path("examples/layouts/default.yaml")
-DEFAULT_LAYOUT_VERSION = 1
+DEFAULT_LAYOUT_PATH = DEFAULT_V2_LAYOUT_PATH
+DEFAULT_LAYOUT_VERSION = 2
 
 
 def layout_version(data: dict[str, Any]) -> int:
@@ -49,11 +50,11 @@ def resolve_layout_path(layout_file: Path | None) -> Path:
     if layout_file is not None:
         return layout_file.resolve()
 
-    default_path = DEFAULT_LAYOUT_RELATIVE.resolve()
+    default_path = DEFAULT_LAYOUT_PATH.resolve()
     if not default_path.exists():
         raise SongConfigError(
             "No layout file provided and default layout was not found at "
-            f"{DEFAULT_LAYOUT_RELATIVE}"
+            f"{DEFAULT_LAYOUT_PATH}"
         )
 
     return default_path

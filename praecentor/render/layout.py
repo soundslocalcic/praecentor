@@ -22,9 +22,7 @@ def render_cue_frames(*, layout_data: dict[str, Any], **kwargs):
 
 
 def render_title_countdown_frames(*, layout_data=None, title_layout=None, **kwargs):
-    if layout_data is None:
-        layout_data = {"title": title_layout if title_layout is not None else {}}
-    config = resolve_layout_config(layout_data)
+    config = resolve_layout_config(layout_data if layout_data is not None else {})
     if layout_version(config) == 1:
         title = title_layout if title_layout is not None else config.get("title") or {}
         return v1.render_title_countdown_frames(title_layout=title, **kwargs)
