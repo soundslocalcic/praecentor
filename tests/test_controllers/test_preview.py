@@ -95,6 +95,18 @@ def test_preview_rejects_v1_and_output_collisions(tmp_path):
     assert config.read_text() == '{"version": 2}'
 
 
+def test_preview_explains_when_a_song_file_is_passed_instead_of_its_layout(tmp_path):
+    song = tmp_path / "Praecentor.yaml"
+    song.write_text(yaml.safe_dump({
+        "version": 1, "video": {"layout": {"file": "layouts/sea_v2.yaml"}}, "events": [],
+    }))
+    with pytest.raises(ControllerError, match="expects a layout YAML, not a song YAML") as failure:
+        preview.preview_layout(song, output=tmp_path / "preview.png")
+    assert str(tmp_path / "layouts" / "sea_v2.yaml") in str(failure.value)
+    assert "omit the argument" in str(failure.value)
+    assert not (tmp_path / "preview.png").exists()
+
+
 def test_guide_labels_group_shared_rectangles_and_stay_on_canvas(monkeypatch):
     config = preview.load_layout_config(DEFAULT_LAYOUT_PATH)
     labels = []

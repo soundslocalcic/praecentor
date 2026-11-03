@@ -20,7 +20,7 @@ from praecentor.controllers.preview import SAMPLES, preview_layout
 @click.option("--guides", is_flag=True, help="Draw element rectangles and pixel coordinates.")
 @click.option("--show", is_flag=True, help="Open the saved PNG in a local image viewer using Pillow.")
 def preview_cmd(layout_file, sample, output, font_dir, background, guides, show):
-    """Preview a v2 layout, or the packaged draft when LAYOUT_FILE is omitted."""
+    """Preview LAYOUT_FILE itself, not a song YAML; omit it for the packaged draft."""
     try:
         result = preview_layout(
             layout_file, sample=sample, output=output, font_dir=font_dir, background=background, guides=guides,

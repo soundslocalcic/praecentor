@@ -297,6 +297,13 @@ Preview your own explicit v2 YAML, inspect bounds, or open a local viewer:
    praecentor preview-layout my-layout.yaml --sample chords-long --show
    praecentor preview-layout --background /path/to/cola.jpg --show
 
+The positional argument is the layout file itself, not the song's
+``Praecentor.yaml``. For a song, use the path named by its
+``video.layout.file`` setting. The song may legitimately declare version 1
+while that referenced layout declares version 2. A custom file containing
+only ``version: 2`` has no foreground elements and therefore renders just
+its background. To preview the all-elements draft, omit the file argument.
+
 ``--background`` replaces the preview's image layers with one fully opaque
 image, without modifying the source layout. To judge a particular opacity or
 layer stack, set it in your YAML and pass that layout file instead. ``--show``

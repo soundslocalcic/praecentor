@@ -161,6 +161,18 @@ def preview_layout(
     try:
         config = load_layout_config(layout_path)
         if layout_version(config) != 2:
+            video = config.get("video")
+            if "events" in config and isinstance(video, dict):
+                reference = video.get("layout")
+                filename = reference.get("file") if isinstance(reference, dict) else None
+                target = (
+                    str((layout_path.parent / filename).resolve()) if isinstance(filename, str) else "the layout YAML"
+                )
+                raise ControllerError(
+                    "preview-layout expects a layout YAML, not a song YAML. "
+                    f"Pass the file referenced by video.layout.file ({target}), "
+                    "or omit the argument to preview the all-elements draft template."
+                )
             raise ControllerError("preview-layout requires an explicit version: 2 layout")
         if background is not None:
             config["background"]["layers"] = [{"type": "image", "file": str(Path(background).resolve()), "opacity": 1}]
