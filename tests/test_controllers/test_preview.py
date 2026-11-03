@@ -5,12 +5,21 @@ from types import SimpleNamespace
 from unittest.mock import Mock
 
 from PIL import Image, ImageChops, ImageDraw, ImageFont
+from PIL import __version__ as PILLOW_VERSION, features
+import hashlib
 import pytest
 import yaml
 
 from praecentor.controllers import preview, rendering
 from praecentor.controllers.errors import ControllerError
 from praecentor.io.layout_v2 import DEFAULT_LAYOUT_PATH
+
+APPROVED_DIR = Path(__file__).parents[1] / "fixtures" / "layout_v2" / "approved"
+
+
+def test_approved_default_spec_is_frozen():
+    manifest = json.loads((APPROVED_DIR / "manifest.json").read_text())
+    assert preview.load_layout_config(DEFAULT_LAYOUT_PATH) == manifest["resolved_default"]
 
 
 @pytest.fixture
@@ -19,6 +28,24 @@ def inter_directory():
         if (path / "Inter_24pt-Bold.ttf").is_file() and (path / "Inter_24pt-ExtraBold.ttf").is_file():
             return path
     pytest.skip("Set PRAECENTOR_FONTS_DIR to run real Inter preview checks")
+
+
+def test_approved_default_frames(tmp_path, inter_directory):
+    manifest = json.loads((APPROVED_DIR / "manifest.json").read_text())
+    result = preview.preview_layout(output=tmp_path / "approved.png", font_dir=inter_directory)
+    actual_fonts = [{"role": report["role"], "family": report["family"], "variant": report["variant"],
+                     "filename": Path(report["file"]).name,
+                     "sha256": hashlib.sha256(Path(report["file"]).read_bytes()).hexdigest()}
+                    for report in result["fonts"]]
+    if actual_fonts != manifest["fonts"]:
+        pytest.skip("Approved pixels require the recorded Inter and accidental fonts")
+    if PILLOW_VERSION != manifest["pillow"] or features.version("freetype2") != manifest["freetype"]:
+        pytest.skip("Approved pixels require the recorded Pillow/FreeType versions")
+    assert set(result["frames"]) == set(manifest["frames"])
+    for name, filename in result["frames"].items():
+        with Image.open(filename) as actual, Image.open(APPROVED_DIR / f"{name}.png") as expected:
+            assert actual.size == expected.size == (1920, 1080)
+            assert ImageChops.difference(actual, expected).getbbox() is None, name
 
 
 def test_preview_generates_all_renderer_samples_and_full_size_frames(tmp_path, inter_directory, monkeypatch):

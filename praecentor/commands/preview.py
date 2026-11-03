@@ -26,7 +26,7 @@ def preview_cmd(layout_file, sample, output, font_dir, background, guides, show)
             layout_file, sample=sample, output=output, font_dir=font_dir, background=background, guides=guides,
         )
         if result["draft_default"]:
-            click.echo("Using the all-elements draft template; visual approval is still pending.")
+            click.echo("Using the approved all-elements v2 default template.")
         for font in result["fonts"]:
             click.echo(f"Font [{font['role']}]: {font['family']} {font['variant']} ({font['file']})")
         click.echo(f"Preview: {result['output']}")

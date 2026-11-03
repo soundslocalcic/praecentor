@@ -1,0 +1,294 @@
+{
+  "approved_at": "2026-11-03",
+  "approval": "User accepted v2 after full-song renders; proceed to roadmap phase 4.",
+  "source_revision": "896e162da7888f49ee684f11058b536e777099a7",
+  "resolved_default": {
+    "version": 2,
+    "canvas": {
+      "width": 1920,
+      "height": 1080
+    },
+    "background": {
+      "color": "#101010",
+      "layers": []
+    },
+    "title": {
+      "elements": {
+        "title_text": {
+          "enabled": true,
+          "x": 140,
+          "y": 180,
+          "width": 1640,
+          "height": 220,
+          "style": {
+            "font_family": "Inter",
+            "weight": 800,
+            "color": "#FFFFFF",
+            "align": "center",
+            "valign": "center",
+            "letter_spacing_em": 0.0,
+            "line_height": 1.0,
+            "size_px": 96
+          }
+        },
+        "metadata_text": {
+          "enabled": true,
+          "x": 300,
+          "y": 440,
+          "width": 1320,
+          "height": 200,
+          "style": {
+            "font_family": "Inter",
+            "weight": 700,
+            "color": "#D9D9D9",
+            "align": "center",
+            "valign": "center",
+            "letter_spacing_em": 0.0,
+            "line_height": 1.0,
+            "size_px": 48
+          },
+          "behavior": {
+            "show_artist": true,
+            "show_key": true,
+            "show_hot_start": true
+          }
+        },
+        "countdown_text": {
+          "enabled": true,
+          "x": 864,
+          "y": 800,
+          "width": 192,
+          "height": 180,
+          "style": {
+            "font_family": "Inter",
+            "weight": 700,
+            "color": "#FFFFFF",
+            "align": "center",
+            "valign": "center",
+            "letter_spacing_em": 0.0,
+            "line_height": 1.0,
+            "size_px": 132
+          }
+        },
+        "first_chord_preview": {
+          "enabled": true,
+          "x": 1338,
+          "y": 788,
+          "width": 240,
+          "height": 240,
+          "style": {
+            "font_family": "Inter",
+            "weight": 700,
+            "color": "#FF9F1C",
+            "align": "center",
+            "valign": "center",
+            "letter_spacing_em": 0.0,
+            "line_height": 1.0,
+            "size_px": 132
+          },
+          "appearance": {
+            "padding_px": 0,
+            "ring": {
+              "enabled": true,
+              "color": "#FF9F1C",
+              "width_px": 6,
+              "padding_px": 0,
+              "dotted": true,
+              "dash_degrees": 5.5,
+              "gap_degrees": 4.5
+            }
+          },
+          "behavior": {
+            "slide_beats": 1.0,
+            "slide_lead_beats": 1.0
+          }
+        },
+        "beat_indicator": {
+          "enabled": true,
+          "x": 1596,
+          "y": 758,
+          "width": 300,
+          "height": 300,
+          "appearance": {
+            "fill_color": "#72E676",
+            "pulse_first_color": "#72E676",
+            "pulse_other_color": "#3B82F6",
+            "pulse_expand_px": 35,
+            "pulse_width_px": 6.25
+          }
+        }
+      },
+      "enabled": true,
+      "countdown_beats": 4
+    },
+    "song": {
+      "elements": {
+        "lyric_main": {
+          "enabled": true,
+          "x": 54,
+          "y": 0,
+          "width": 1812,
+          "height": 908,
+          "style": {
+            "font_family": "Inter",
+            "weight": 700,
+            "color": "#FFFFFF",
+            "align": "center",
+            "valign": "center",
+            "letter_spacing_em": 0.0,
+            "line_height": 1.2,
+            "size_px": 94,
+            "split_a_color": "#ADFFDA",
+            "split_b_color": "#F7E6D8",
+            "split_c_color": "#E8DFF7"
+          },
+          "behavior": {
+            "scroll_preview_beats": 3.0,
+            "preview_opacity": 0.5,
+            "outgoing_opacity": 0.0,
+            "preview_margin_px": null,
+            "event_margin_em": null,
+            "event_margin_rem": 1.5,
+            "entrance_beats": 0.0,
+            "exit_beats": 1.0,
+            "edge_fade_px": 282
+          }
+        },
+        "chord_main": {
+          "enabled": true,
+          "x": 54,
+          "y": 788,
+          "width": 1236,
+          "height": 240,
+          "style": {
+            "font_family": "Inter",
+            "weight": 700,
+            "color": "#FFFFFF",
+            "align": "left",
+            "valign": "center",
+            "letter_spacing_em": -0.05,
+            "line_height": 1.0,
+            "size_px": 144
+          }
+        },
+        "next_chord": {
+          "enabled": true,
+          "x": 1338,
+          "y": 788,
+          "width": 240,
+          "height": 240,
+          "style": {
+            "font_family": "Inter",
+            "weight": 700,
+            "color": "#FF9F1C",
+            "align": "center",
+            "valign": "center",
+            "letter_spacing_em": 0.0,
+            "line_height": 1.0,
+            "size_px": 132
+          },
+          "appearance": {
+            "ring": {
+              "enabled": true,
+              "color": "#FF9F1C",
+              "width_px": 6,
+              "padding_px": 0,
+              "dotted": true,
+              "dash_degrees": 5.5,
+              "gap_degrees": 4.5
+            },
+            "warning": {
+              "enabled": true,
+              "color": "#FF9F1C",
+              "icon_scale": 1.8,
+              "gap_px": 16,
+              "flash_hz": 2.5,
+              "flash_duty_cycle": 0.5
+            },
+            "loop": {
+              "icon_scale": 0.9,
+              "y_offset_px": -5
+            }
+          },
+          "behavior": {
+            "lookahead_beats": 4.0
+          }
+        },
+        "beat_indicator": {
+          "enabled": true,
+          "x": 1596,
+          "y": 758,
+          "width": 300,
+          "height": 300,
+          "appearance": {
+            "fill_color": "#72E676",
+            "pulse_first_color": "#72E676",
+            "pulse_other_color": "#3B82F6",
+            "pulse_expand_px": 35,
+            "pulse_width_px": 6.25
+          }
+        },
+        "riff": {
+          "enabled": true,
+          "x": 54,
+          "y": 788,
+          "width": 1236,
+          "height": 240,
+          "appearance": {
+            "viewport_beats": 8.0,
+            "center_fraction": 0.5,
+            "pre_roll_beats": 0,
+            "post_roll_beats": 0,
+            "lane_gap_px": 12,
+            "note_side_margin_px": 2,
+            "note_height_ratio": 0.58,
+            "lane_color": "#2A2A2A",
+            "note_color": "#F5F5F5",
+            "active_note_color": "#19FF19",
+            "playhead_color": "#FF8000",
+            "playhead_width_px": 4
+          }
+        }
+      },
+      "enabled": true
+    }
+  },
+  "frames": [
+    "title",
+    "countdown",
+    "lyrics",
+    "lyrics-long",
+    "instruction",
+    "chords-short",
+    "chords-long",
+    "accidentals",
+    "riff",
+    "warning",
+    "beat"
+  ],
+  "fonts": [
+    {
+      "role": "text",
+      "family": "Inter 24pt",
+      "variant": "ExtraBold",
+      "filename": "Inter_24pt-ExtraBold.ttf",
+      "sha256": "a39a597b8e9f869916603b935173e0b444298e012b08a5ed6ab9bbc4f4572212"
+    },
+    {
+      "role": "text",
+      "family": "Inter 24pt",
+      "variant": "Bold",
+      "filename": "Inter_24pt-Bold.ttf",
+      "sha256": "9a2a0b55e203727936212904dedea502e678ba0d6c27851cab1f5eec3d23ef98"
+    },
+    {
+      "role": "musical_accidentals",
+      "family": "Arial Unicode MS",
+      "variant": "Regular",
+      "filename": "Arial Unicode.ttf",
+      "sha256": "876af2cd4854644e7f3e7feb2f688997fdb3343c6df6693611209c9dfb47ccec"
+    }
+  ],
+  "pillow": "12.3.0",
+  "freetype": "2.14.3"
+}

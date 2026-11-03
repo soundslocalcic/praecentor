@@ -24,7 +24,7 @@ def test_preview_cli_delegates_without_opening_a_viewer(tmp_path, monkeypatch):
         "preview-layout", "--sample", "lyrics", "--output", str(tmp_path / "preview.png"), "--guides",
     ])
     assert result.exit_code == 0, result.output
-    assert "visual approval is still pending" in result.output
+    assert "approved all-elements v2 default" in result.output
     assert controller.call_args.kwargs["sample"] == "lyrics"
     assert controller.call_args.kwargs["guides"] is True
     show.assert_not_called()
