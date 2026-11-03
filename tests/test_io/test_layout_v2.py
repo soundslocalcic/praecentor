@@ -20,8 +20,8 @@ def test_packaged_draft_template_contains_every_element():
     result = load_layout_config(DEFAULT_LAYOUT_PATH)
     assert set(result["song"]["elements"]) == set(SONG_ELEMENTS)
     assert set(result["title"]["elements"]) == set(TITLE_ELEMENTS)
-    assert result["song"]["elements"]["chord_main"]["width"] == 1498
-    assert result["song"]["elements"]["riff"]["width"] == 1498
+    assert result["song"]["elements"]["chord_main"]["width"] == 1236
+    assert result["song"]["elements"]["riff"]["width"] == 1236
     assert result["title"]["enabled"] is True
 
 
@@ -32,7 +32,7 @@ def test_v2_sparse_specs_inherit_all_elements_and_partial_overrides():
     assert set(enabled_elements(result, "song")) == set(SONG_ELEMENTS)
     assert set(enabled_elements(result, "title")) == set(TITLE_ELEMENTS)
     chord = result["song"]["elements"]["chord_main"]
-    assert (chord["x"], chord["y"], chord["width"], chord["height"]) == (300, 788, 1498, 240)
+    assert (chord["x"], chord["y"], chord["width"], chord["height"]) == (300, 788, 1236, 240)
     assert chord["style"]["size_px"] == 144
     assert chord["style"]["color"] == "#ABC"
     assert source == original

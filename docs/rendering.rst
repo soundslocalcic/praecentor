@@ -165,7 +165,7 @@ ratio), and ``letter_spacing_em`` (-1 to 1). The lyric style also supports
 Style defaults use Inter, weight 700, white, centred alignment in both axes,
 line height 1 and zero letter spacing; the lyric/instruction template uses line
 height 1.2. Title weight defaults to 800, metadata
-colour to #D9D9D9 and next-chord colour to #FF9F1C. The shared template controls
+colour to #D9D9D9 and title/event lookahead colours to #FF9F1C. The shared template controls
 resolved sizes: currently 96, 48, 132 and 132 for title/metadata/countdown/
 first-chord preview; 94, 144 and 132 for lyrics/current chord/next chord.
 The renderer, previews and future editor all resolve the same template, rather
@@ -186,7 +186,7 @@ Additional nested settings are supported only on the following elements:
 - ``metadata_text.behavior``: boolean ``show_artist``, ``show_key`` and
   ``show_hot_start`` flags, all defaulting to true.
 - ``lyric_main.behavior``: ``scroll_preview_beats``, ``preview_opacity``,
-  ``outgoing_opacity``, ``event_margin_em``, ``preview_margin_px``,
+  ``outgoing_opacity``, ``event_margin_rem``, ``event_margin_em``, ``preview_margin_px``,
   ``entrance_beats`` and ``exit_beats``.
 - ``next_chord.appearance``: ``ring``, ``warning`` and ``loop`` mappings.
   ``next_chord.behavior.lookahead_beats`` controls the lookahead window.
@@ -286,9 +286,12 @@ The lyric element displays a continuous measured scroll of distinct lyric or
 short-instruction blocks. Each block fits against the full lyric rectangle,
 not a half-height preview box. Its actual glyph height determines its space in
 the scroll. Lyrics and short instructions default to line height 1.2. The
-default inter-event gap is ``event_margin_em: 0.5`` times the lyric element's
-configured font size (47px at 94px). An explicit numeric ``preview_margin_px``
-overrides the em gap; leave it absent or set it to null to use em spacing.
+default inter-event gap is ``event_margin_rem: 1.5`` using a fixed 94px canvas
+reference, giving 141px. This is a layout unit, not the browser's conventional
+16px CSS root: local font-size overrides do not change this gap. An explicit
+numeric ``preview_margin_px`` takes precedence; otherwise a numeric
+``event_margin_em`` scales with that element's configured font size. Leave
+those two settings absent/null to use the default rem gap.
 Duplicate consecutive display text and chord-only events do not restart or
 clear the scroll.
 
@@ -302,8 +305,8 @@ During the final ``scroll_preview_beats`` (default 3) before a new display event
 the scroll eases to the next block's centre. Song lyric lead-in can extend the
 transition window; arrival remains aligned with the actual cue time. Default
 text colour is white, active opacity is 100%, upcoming opacity is 50% via
-``preview_opacity``, and outgoing opacity is 25% via ``outgoing_opacity``.
-During a transition the outgoing block fades towards 25% and the incoming
+``preview_opacity``, and outgoing opacity is 0% via ``outgoing_opacity``.
+During a transition the outgoing block fades completely out and the incoming
 block towards 100%, without a jump at the event boundary. Explicit text/part
 colours remain supported.
 
@@ -344,6 +347,13 @@ The packaged ``praecentor/assets/layouts/default-v2.yaml`` is the shared draft
 for visual tuning. It contains every supported Title and Song element with
 explicit geometry. Inclusion is not simultaneous visibility: riffs, warnings,
 countdowns and other state-dependent content appear only in suitable samples.
+By default the lyric viewport is horizontally centred across the canvas, above
+a shared bottom row. Current chords/riffs occupy the left 1236px box; lookahead
+and beat pie have separate 240px boxes to its right. All bottom-row boxes use
+Y=788 and height=240, with no overlap or runtime dependence between them.
+The title's first-chord preview has the same default rectangle, orange text,
+font size, ring colour/width and text padding as the event lookahead. Overrides
+remain independent: changing an event element does not move a title element.
 Custom v2 layouts inherit this template too; omissions retain defaults and
 explicit ``enabled: false`` settings hide elements. The template's final visual
 approval and reference capture remain separate from this override contract.

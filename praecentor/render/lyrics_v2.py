@@ -8,6 +8,7 @@ import math
 
 from PIL import Image, ImageDraw
 
+from praecentor.io.layout_v2 import CANVAS_REM_PX
 from praecentor.render import cue_frames as state
 from praecentor.render.text_v2 import composite_element, draw_text, fit_text
 
@@ -27,7 +28,9 @@ class LyricScroll:
         self.settings = element["behavior"]
         self.margin = self.settings["preview_margin_px"]
         if self.margin is None:
-            self.margin = self.settings["event_margin_em"] * element["style"]["size_px"]
+            em = self.settings["event_margin_em"]
+            self.margin = (em * element["style"]["size_px"] if em is not None
+                           else self.settings["event_margin_rem"] * CANVAS_REM_PX)
         self.beat_seconds = beat_seconds
         self.lead_in_beats = lead_in_beats
         self.frame_seconds = 1 / fps
@@ -151,6 +154,8 @@ class LyricScroll:
     def draw(self, image, now, event_index):
         overlay = Image.new("RGBA", image.size)
         for block, placed, alpha in self.placements(now, event_index):
+            if alpha <= 0:
+                continue
             if block["kind"] == "progress":
                 _key, start, end = block["window"]
                 width, height = max(1, round(placed["width"])), max(1, round(placed["height"]))

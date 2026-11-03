@@ -30,34 +30,39 @@ title:
       style:
         size_px: 132
     first_chord_preview:
-      x: 1600
+      x: 1338
       y: 788
       width: 240
       height: 240
       style:
         size_px: 132
+        color: "#FF9F1C"
       appearance:
-        padding_px: 18
+        padding_px: 0
+        ring:
+          color: "#FF9F1C"
+          width_px: 6
 song:
   elements:
     lyric_main:
       x: 54
       y: 54
-      width: 1498
+      width: 1812
       height: 680
       style:
         size_px: 94
         line_height: 1.2
+        align: center
     chord_main:
       x: 54
       y: 788
-      width: 1498
+      width: 1236
       height: 240
       style:
         size_px: 144
         letter_spacing_em: -0.05
     next_chord:
-      x: 1600
+      x: 1338
       y: 788
       width: 240
       height: 240
@@ -67,14 +72,14 @@ song:
         loop:
           icon_scale: 0.9
     beat_indicator:
-      x: 1600
-      y: 54
-      width: 259
-      height: 259
+      x: 1626
+      y: 788
+      width: 240
+      height: 240
     riff:
       x: 54
       y: 788
-      width: 1498
+      width: 1236
       height: 240
       appearance:
         pre_roll_beats: 0

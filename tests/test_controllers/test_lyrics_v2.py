@@ -23,14 +23,14 @@ def test_current_lyrics_are_centered_and_neighbours_keep_their_own_heights():
     assert alpha == 1
     upcoming = scroll.blocks[1]
     assert upcoming["size"] == 80
-    assert upcoming["top"] - block["bottom"] == 40
+    assert upcoming["top"] - block["bottom"] == 141
     assert any(item[1]["y"] + item[1]["height"] > 780 for item in placements)
 
 
 def test_scroll_and_opacity_are_continuous_at_the_event_boundary():
     scroll = make_scroll([{"lyric": "First"}, {"lyric": "Second"}, {"lyric": "Third"}], [0, 10, 20])
     halfway = scroll.placements(9, 0)
-    assert next(item[2] for item in halfway if item[0]["row"] == 0) == pytest.approx(0.625)
+    assert next(item[2] for item in halfway if item[0]["row"] == 0) == pytest.approx(0.5)
     assert next(item[2] for item in halfway if item[0]["row"] == 1) == pytest.approx(0.75)
     before = scroll.placements(10 - 1e-6, 0)
     after = scroll.placements(10, 1)
@@ -40,7 +40,7 @@ def test_scroll_and_opacity_are_continuous_at_the_event_boundary():
         assert previous[1]["y"] == pytest.approx(current[1]["y"], abs=0.001)
         assert previous[2] == pytest.approx(current[2], abs=0.001)
     assert next(item[2] for item in after if item[0]["row"] == 1) == 1
-    assert next(item[2] for item in after if item[0]["row"] == 0) == 0.25
+    assert next(item[2] for item in after if item[0]["row"] == 0) == 0
 
 
 def test_long_break_progress_is_a_centered_block_in_the_same_scroll():
@@ -87,15 +87,23 @@ def test_unrenderable_new_block_does_not_leave_previous_words_active():
     assert scroll.placements(6, 1) == []
 
 
-def test_default_line_height_and_em_gap_follow_lyric_typography():
+def test_default_line_height_and_rem_gap_use_the_fixed_canvas_reference():
     config = validate_layout_config({"version": 2})
     lyric = config["song"]["elements"]["lyric_main"]
     assert lyric["style"]["line_height"] == 1.2
     assert config["song"]["elements"]["chord_main"]["style"]["line_height"] == 1
     scroll = LyricScroll(lyric, [{"lyric": "First"}, {"instruction": "Next"}], [0, 5], 5, [{}, {}], beat_seconds=1)
-    assert scroll.margin == 47
-    assert scroll.blocks[1]["top"] - scroll.blocks[0]["bottom"] == 47
+    assert scroll.margin == 141
+    assert scroll.blocks[1]["top"] - scroll.blocks[0]["bottom"] == 141
     assert scroll.blocks[1]["size"] == 94
+    smaller = make_scroll([{"lyric": "First"}, {"lyric": "Second"}], [0, 5])
+    assert smaller.margin == 141
+
+
+def test_explicit_em_gap_still_scales_with_the_lyric_font():
+    scroll = make_scroll([{"lyric": "First"}, {"lyric": "Second"}], [0, 5],
+                         element={"behavior": {"event_margin_em": 0.5}})
+    assert scroll.margin == 40
 
 
 def test_explicit_pixel_gap_takes_precedence_over_em_gap():
@@ -119,7 +127,7 @@ def test_progress_blocks_scroll_and_fade_continuously_at_both_break_boundaries()
     halfway_in = next(item for item in scroll.placements(4, 0) if item[0]["kind"] == "progress")
     assert halfway_in[2] == pytest.approx(0.75)
     outgoing = next(item for item in scroll.placements(25, 2) if item[0]["kind"] == "progress")
-    assert outgoing[2] == 0.25
+    assert outgoing[2] == 0
 
 
 def test_consecutive_break_events_share_one_progress_block_and_drawing_is_clipped():

@@ -14,6 +14,7 @@ from praecentor.io.song import SongConfigError
 
 CANVAS_WIDTH = 1920
 CANVAS_HEIGHT = 1080
+CANVAS_REM_PX = 94
 DEFAULT_LAYOUT_PATH = Path(__file__).resolve().parents[1] / "assets" / "layouts" / "default-v2.yaml"
 TITLE_ELEMENTS = ("title_text", "metadata_text", "countdown_text", "first_chord_preview")
 SONG_ELEMENTS = ("lyric_main", "chord_main", "next_chord", "beat_indicator", "riff")
@@ -56,8 +57,9 @@ APPEARANCE = {
 BEHAVIOR = {
     "metadata_text": {"show_artist": True, "show_key": True, "show_hot_start": True},
     "lyric_main": {
-        "scroll_preview_beats": 3.0, "preview_opacity": 0.5, "outgoing_opacity": 0.25,
-        "preview_margin_px": None, "event_margin_em": 0.5, "entrance_beats": 0.0, "exit_beats": 1.0,
+        "scroll_preview_beats": 3.0, "preview_opacity": 0.5, "outgoing_opacity": 0.0,
+        "preview_margin_px": None, "event_margin_em": None, "event_margin_rem": 1.5,
+        "entrance_beats": 0.0, "exit_beats": 1.0,
     },
     "next_chord": {"lookahead_beats": 4.0},
     "first_chord_preview": {"slide_beats": 1.0, "slide_lead_beats": 1.0},
@@ -102,7 +104,7 @@ def _settings(value: Any, defaults: dict[str, Any], path: str) -> dict[str, Any]
     for key, setting in raw.items():
         target = f"{path}.{key}"
         default = defaults[key]
-        if key == "preview_margin_px":
+        if key in ("preview_margin_px", "event_margin_em"):
             result[key] = None if setting is None else _number(setting, target, minimum=0)
         elif isinstance(default, dict):
             result[key] = _settings(setting, default, target)

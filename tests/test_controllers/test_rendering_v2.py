@@ -8,7 +8,7 @@ import pytest
 import yaml
 
 from praecentor.controllers import rendering
-from praecentor.io.layout_v2 import SONG_ELEMENTS, validate_layout_config
+from praecentor.io.layout_v2 import SONG_ELEMENTS, TITLE_ELEMENTS, validate_layout_config
 from praecentor.io.song import SongConfigError
 from praecentor.render import v2
 from praecentor.render.text_v2 import draw_text, fit_text
@@ -344,6 +344,43 @@ def test_v2_default_loop_icon_is_half_the_ring_footprint(monkeypatch):
     v2._next_chord(Image.new("RGBA", (1920, 1080)), element, "", 1, loop=True)
     assert 115 <= icon.call_args.args[0] <= 125
     assert element["width"] == element["height"] == 240
+
+
+def test_v2_default_lyrics_are_centered_above_an_aligned_bottom_row():
+    config = validate_layout_config({"version": 2})
+    elements = config["song"]["elements"]
+    lyric = elements["lyric_main"]
+    assert lyric["x"] + lyric["width"] / 2 == 960
+    assert lyric["style"]["align"] == "center"
+    for name in ("chord_main", "riff", "next_chord", "beat_indicator"):
+        element = elements[name]
+        assert element["y"] == 788
+        assert element["height"] == 240
+        assert element["y"] + element["height"] / 2 == 908
+    assert elements["chord_main"]["x"] + elements["chord_main"]["width"] < elements["next_chord"]["x"]
+    assert elements["next_chord"]["x"] + elements["next_chord"]["width"] < elements["beat_indicator"]["x"]
+    assert lyric["y"] + lyric["height"] < 788
+
+
+def test_v2_settled_title_lookahead_matches_event_lookahead_pixels(tmp_path):
+    raw = {"version": 2, "title": {"elements": {
+        name: {"enabled": name == "first_chord_preview"} for name in TITLE_ELEMENTS
+    }}}
+    config = validate_layout_config(raw)
+    title = config["title"]["elements"]["first_chord_preview"]
+    event = config["song"]["elements"]["next_chord"]
+    for key in ("x", "y", "width", "height", "style"):
+        assert title[key] == event[key]
+    assert title["appearance"]["ring"] == event["appearance"]["ring"]
+    frames = []
+    v2.render_title_countdown_frames(
+        layout_data=raw, output_dir=tmp_path, fps=1, countdown_beats=4,
+        first_chord_preview_text="Bb", first_chord_preview_lead_beats=1,
+        background_is_transparent=True, frame_sink=lambda image, index: frames.append(image.copy()),
+    )
+    expected = Image.new("RGBA", (1920, 1080))
+    v2._next_chord(expected, event, "Bb", 0.25)
+    assert ImageChops.difference(frames[-1], expected).getbbox(alpha_only=False) is None
 
 
 def test_v2_oversized_warning_gap_cannot_draw_text_outside_the_element():
