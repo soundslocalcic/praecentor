@@ -25,6 +25,9 @@ class LyricScroll:
     ):
         self.element = deepcopy(element)
         self.settings = element["behavior"]
+        self.margin = self.settings["preview_margin_px"]
+        if self.margin is None:
+            self.margin = self.settings["event_margin_em"] * element["style"]["size_px"]
         self.beat_seconds = beat_seconds
         self.lead_in_beats = lead_in_beats
         self.frame_seconds = 1 / fps
@@ -33,10 +36,19 @@ class LyricScroll:
         self.segments = []
         self.event_blocks = []
         self.breaks = {}
-        windows = state._instruction_progress_windows(events, starts, tail_seconds + postlude_seconds)
+        visible = [index for index, event in enumerate(events) if state._event_display_text(event)]
+        windows = [None] * len(events)
+        if visible:
+            visible_windows = state._instruction_progress_windows(
+                [events[index] for index in visible], [starts[index] for index in visible],
+                self.end_time - starts[visible[-1]],
+            )
+            for index, window in zip(visible, visible_windows):
+                windows[index] = window
         current = None
-        segment = None
-        cursor = 0.0
+        segment = {"blocks": [], "start": starts[0] if starts else 0, "end": self.end_time}
+        if events:
+            self.segments.append(segment)
         for index, event in enumerate(events):
             window = windows[index]
             is_break = window is not None and state._instruction_progress_mode_for_event(
@@ -47,29 +59,19 @@ class LyricScroll:
             )
             if is_break:
                 self.breaks[index] = window
-                if segment is not None:
-                    segment["end"] = window[1]
-                current = None
-                segment = None
-                cursor = 0.0
+                if current is None or current["kind"] != "progress" or current["window"] != window:
+                    height = max(1, min(48, math.floor(element["height"] / 5)))
+                    current = self._append_block(
+                        segment, "", {}, window[1], height, element["style"]["size_px"], window=window,
+                    )
             else:
                 text = state._event_display_text(event)
                 if text and (current is None or text != current["text"] or colors[index] != current["colors"]):
                     fitted = fit_text(text, element)
                     if fitted is not None:
                         size, _lines, top, bottom = fitted
-                        if segment is None:
-                            segment = {"blocks": [], "start": starts[index], "end": self.end_time}
-                            self.segments.append(segment)
                         height = max(1, math.ceil(bottom - top))
-                        current = {
-                            "text": text, "colors": colors[index], "time": starts[index], "height": height,
-                            "top": cursor, "bottom": cursor + height, "center": cursor + height / 2,
-                            "size": size, "segment": segment, "row": len(segment["blocks"]),
-                        }
-                        self.blocks.append(current)
-                        segment["blocks"].append(current)
-                        cursor += height + self.settings["preview_margin_px"]
+                        current = self._append_block(segment, text, colors[index], starts[index], height, size)
                     else:
                         current = None
             self.event_blocks.append(current)
@@ -77,8 +79,20 @@ class LyricScroll:
             segment["tops"] = [block["top"] for block in segment["blocks"]]
             segment["bottoms"] = [block["bottom"] for block in segment["blocks"]]
 
+    def _append_block(self, segment, text, colors, at_seconds, height, size, window=None):
+        top = segment["blocks"][-1]["bottom"] + self.margin if segment["blocks"] else 0
+        block = {
+            "kind": "progress" if window is not None else "text", "window": window,
+            "text": text, "colors": colors, "time": at_seconds, "height": height,
+            "top": top, "bottom": top + height, "center": top + height / 2,
+            "size": size, "segment": segment, "row": len(segment["blocks"]),
+        }
+        self.blocks.append(block)
+        segment["blocks"].append(block)
+        return block
+
     def placements(self, now, event_index):
-        if not self.blocks or event_index in self.breaks:
+        if not self.blocks:
             return []
         if event_index is None or event_index < 0:
             current = self.blocks[0]
@@ -102,7 +116,7 @@ class LyricScroll:
             offset += (following["center"] - current["center"]) * transition
         entrance = self.settings["entrance_beats"] * self.beat_seconds
         if row == 0 and entrance > 0 and now < current["time"] + entrance:
-            distance = element["height"] / 2 + current["height"] / 2 + self.settings["preview_margin_px"]
+            distance = element["height"] / 2 + current["height"] / 2 + self.margin
             offset -= distance * (1 - _ease((now - current["time"]) / entrance))
         exiting = 0.0
         if following is None:
@@ -114,7 +128,7 @@ class LyricScroll:
                 interval = max(duration - self.frame_seconds, self.frame_seconds)
                 exiting = _ease((now - segment["end"] + duration) / interval)
                 offset += exiting * (element["height"] / 2 + current["height"] / 2
-                                     + self.settings["preview_margin_px"])
+                                     + self.margin)
         view_top = offset - element["height"] / 2
         view_bottom = view_top + element["height"]
         first = bisect_right(segment["bottoms"], view_top)
@@ -135,20 +149,20 @@ class LyricScroll:
         return result
 
     def draw(self, image, now, event_index):
-        if event_index in self.breaks:
-            _key, start, end = self.breaks[event_index]
-            element = self.element
-            overlay = Image.new("RGBA", image.size)
-            region = tuple(round(element[key]) for key in ("x", "y", "width", "height"))
-            state._draw_progress_bar_at_y(
-                ImageDraw.Draw(overlay), region,
-                center_y=round(element["y"] + element["height"] / 2),
-                progress=max(0, min(1, (now - start) / max(0.001, end - start))),
-                width_ratio=0.6, height_px=max(1, min(48, round(element["height"] / 5))), border_width_px=3,
-            )
-            composite_element(image, overlay, element)
-            return
         overlay = Image.new("RGBA", image.size)
         for block, placed, alpha in self.placements(now, event_index):
-            draw_text(overlay, block["text"], placed, opacity=alpha, line_colors=block["colors"])
+            if block["kind"] == "progress":
+                _key, start, end = block["window"]
+                width, height = max(1, round(placed["width"])), max(1, round(placed["height"]))
+                bar = Image.new("RGBA", (width, height))
+                state._draw_progress_bar_at_y(
+                    ImageDraw.Draw(bar), (0, 0, width, height), center_y=height // 2,
+                    progress=max(0, min(1, (now - start) / max(0.001, end - start))),
+                    width_ratio=0.6, height_px=max(1, height - 1), border_width_px=3,
+                )
+                if alpha < 1:
+                    bar.putalpha(bar.getchannel("A").point(lambda value: round(value * alpha)))
+                overlay.alpha_composite(bar, dest=(round(placed["x"]), round(placed["y"])))
+            else:
+                draw_text(overlay, block["text"], placed, opacity=alpha, line_colors=block["colors"])
         composite_element(image, overlay, self.element)

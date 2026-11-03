@@ -47,6 +47,7 @@ song:
       height: 680
       style:
         size_px: 94
+        line_height: 1.2
     chord_main:
       x: 54
       y: 788

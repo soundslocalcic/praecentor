@@ -57,7 +57,7 @@ BEHAVIOR = {
     "metadata_text": {"show_artist": True, "show_key": True, "show_hot_start": True},
     "lyric_main": {
         "scroll_preview_beats": 3.0, "preview_opacity": 0.5, "outgoing_opacity": 0.25,
-        "preview_margin_px": 24, "entrance_beats": 0.0, "exit_beats": 1.0,
+        "preview_margin_px": None, "event_margin_em": 0.5, "entrance_beats": 0.0, "exit_beats": 1.0,
     },
     "next_chord": {"lookahead_beats": 4.0},
     "first_chord_preview": {"slide_beats": 1.0, "slide_lead_beats": 1.0},
@@ -102,7 +102,9 @@ def _settings(value: Any, defaults: dict[str, Any], path: str) -> dict[str, Any]
     for key, setting in raw.items():
         target = f"{path}.{key}"
         default = defaults[key]
-        if isinstance(default, dict):
+        if key == "preview_margin_px":
+            result[key] = None if setting is None else _number(setting, target, minimum=0)
+        elif isinstance(default, dict):
             result[key] = _settings(setting, default, target)
         elif isinstance(default, bool):
             if not isinstance(setting, bool):

@@ -16,6 +16,8 @@ All notable changes to Praecentor are documented here.
 - A packaged all-elements v2 draft template for collaborative visual review; final default-layout approval is still pending.
 
 ### Fixed
+- Default v2 lyric/instruction line height is 1.2 with a 0.5em inter-event gap; explicit pixel-gap overrides remain supported.
+- Long-break progress bars are timed blocks within the continuous scroll, sharing its movement, fades, centring and clipping rather than replacing it.
 - Default v2 repeat icons are approximately half their former size while the dotted-ring footprint is unchanged.
 - V2 lyrics use one measured event-centred scroll with partially clipped neighbours, fading 100%/50%/25% active/upcoming/outgoing text, long-break progress bars and optional entrance/final-exit motion. Adds a `lyrics-long` preview state.
 - Sparse v2 specs now inherit the shared all-elements template; element/canvas `enabled: false` explicitly opts out without expanding stored YAML or changing v1 semantics.

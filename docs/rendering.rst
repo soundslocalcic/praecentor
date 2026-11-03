@@ -163,7 +163,8 @@ ratio), and ``letter_spacing_em`` (-1 to 1). The lyric style also supports
 ``split_a_color``, ``split_b_color`` and ``split_c_color``.
 
 Style defaults use Inter, weight 700, white, centred alignment in both axes,
-line height 1 and zero letter spacing. Title weight defaults to 800, metadata
+line height 1 and zero letter spacing; the lyric/instruction template uses line
+height 1.2. Title weight defaults to 800, metadata
 colour to #D9D9D9 and next-chord colour to #FF9F1C. The shared template controls
 resolved sizes: currently 96, 48, 132 and 132 for title/metadata/countdown/
 first-chord preview; 94, 144 and 132 for lyrics/current chord/next chord.
@@ -185,7 +186,8 @@ Additional nested settings are supported only on the following elements:
 - ``metadata_text.behavior``: boolean ``show_artist``, ``show_key`` and
   ``show_hot_start`` flags, all defaulting to true.
 - ``lyric_main.behavior``: ``scroll_preview_beats``, ``preview_opacity``,
-  ``outgoing_opacity``, ``preview_margin_px``, ``entrance_beats`` and ``exit_beats``.
+  ``outgoing_opacity``, ``event_margin_em``, ``preview_margin_px``,
+  ``entrance_beats`` and ``exit_beats``.
 - ``next_chord.appearance``: ``ring``, ``warning`` and ``loop`` mappings.
   ``next_chord.behavior.lookahead_beats`` controls the lookahead window.
 - ``first_chord_preview.appearance``: ``padding_px`` and ``ring``.
@@ -283,8 +285,12 @@ area is transparent, revealing the layout background rather than a black disc.
 The lyric element displays a continuous measured scroll of distinct lyric or
 short-instruction blocks. Each block fits against the full lyric rectangle,
 not a half-height preview box. Its actual glyph height determines its space in
-the scroll, with ``preview_margin_px`` (default 24px) between blocks. Duplicate
-consecutive display text and chord-only events do not restart or clear it.
+the scroll. Lyrics and short instructions default to line height 1.2. The
+default inter-event gap is ``event_margin_em: 0.5`` times the lyric element's
+configured font size (47px at 94px). An explicit numeric ``preview_margin_px``
+overrides the em gap; leave it absent or set it to null to use em spacing.
+Duplicate consecutive display text and chord-only events do not restart or
+clear the scroll.
 
 The active block is vertically centred between transitions. Outgoing text may
 remain partially visible above, and future blocks may be clipped below; the
@@ -305,12 +311,14 @@ colours remain supported.
 set it above zero to scroll the beginning into view. ``exit_beats`` defaults
 to one beat, scrolling the final block off the viewport at the end of the cue
 timeline plus postlude; set it to zero to retain the final lyric. Long Intro,
-Break and Outro windows use the v1 beat-duration threshold and show a centred
-progress bar instead of the scroll. The scroll resumes as a new segment after
-the break. The final outro's progress window includes the postlude. These
-calculations are internal to the lyric element and do not depend on other
-elements' rectangles. Chords persist during postlude and the beat clock stays
-only when requested.
+Break and Outro windows use the v1 beat-duration threshold and insert a timed
+progress-bar block into the same scroll. It approaches, centres, fills, fades
+and leaves with the same margins/motion as text; surrounding lyrics may remain
+partially visible. Consecutive break events share one bar and chord-only cues
+do not shorten its time window. The final outro's window includes the postlude.
+These calculations are internal to the lyric element and do not depend on
+other elements' rectangles. Chords persist during postlude and the beat clock
+stays only when requested.
 
 Fitted text layouts and small glyph sprites use bounded caches. Moving or
 fading unchanged text reuses its fit/rasterisation; cache keys retain geometry,
