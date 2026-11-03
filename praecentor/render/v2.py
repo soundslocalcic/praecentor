@@ -226,17 +226,6 @@ def render_cue_frames(
         beat_seconds=beat_seconds, beat_times_seconds=beat_times_seconds,
         default_beat_anchor_index=beat_anchor_index, event_beats_per_bar=meters,
     )
-    phrase_lengths, phrase_starts = state._resolve_phrase_profile_for_events(
-        song_events=song_events,
-        event_starts_seconds=[value + time_origin_seconds + offsets[index] for index, value in enumerate(starts)],
-        default_beats_per_phrase=default_beats_per_phrase, beat_seconds=beat_seconds,
-        beat_times_seconds=beat_times_seconds, beat_anchor_index=beat_anchor_index,
-        event_beat_anchor_indices=anchors, beats_per_bar=meters,
-    )
-    phrase_bases, _extras = state._resolve_event_phrase_structure(
-        song_events=song_events, default_beats_per_phrase=default_beats_per_phrase,
-        event_beats_per_phrase=phrase_lengths,
-    )
     chords = state._effective_chords_for_all(song_events)
     riffs = state._effective_riffs_for_all(song_events)
     next_chords = state._next_non_empty_raw_chord_event_indices(song_events)
@@ -324,24 +313,29 @@ def render_cue_frames(
                     _beat(image, element, beat_time, beat_seconds, beat_times_seconds,
                           bar_start_times_seconds, anchors[index], meters[index])
                 elif name == "next_chord" and not postlude:
-                    elapsed = position - phrase_starts[index]
-                    phrase_length = phrase_lengths[index]
-                    if elapsed >= phrase_length:
-                        elapsed -= phrase_length
-                        phrase_length = phrase_bases[index]
-                    ratio = 1 - (elapsed % phrase_length) / phrase_length
+                    event_end = starts[index + 1] if index + 1 < len(starts) else duration
+                    ratio = state._beat_cycle_remaining_ratio(
+                        current_time=beat_time,
+                        cycle_start=starts[index] + time_origin_seconds + offsets[index],
+                        cycle_end=event_end + time_origin_seconds + offsets[index],
+                        beat_seconds=beat_seconds, beat_times_seconds=beat_times_seconds,
+                        beat_anchor_index=anchors[index],
+                    )
                     token = ""
-                    loop = bool(chords[index]) and not riff_mode
+                    following = chords[index + 1] if index + 1 < len(chords) else None
+                    loop = state._should_show_loop_indicator(chords[index], following) and not riff_mode
                     target = next_chords[index] if riff_mode else next_lookahead[index]
                     if target is not None:
-                        target_time = starts[target] + time_origin_seconds + offsets[target]
-                        until = state._beats_until_target_time(
-                            current_time=beat_time, target_time=target_time, beat_seconds=beat_seconds,
-                            beat_times_seconds=beat_times_seconds, beat_anchor_index=anchors[index],
-                        )
-                        if until <= element["behavior"]["lookahead_beats"]:
-                            token = state._next_chord_preview_token(chords[target])
-                            loop = state._should_show_loop_indicator(chords[index], chords[target]) and not riff_mode
+                        token = state._next_chord_preview_token(chords[target])
+                        # Like v1, an active chord set previews its successor for the whole event.
+                        if riff_mode or not chords[index].strip():
+                            target_time = starts[target] + time_origin_seconds + offsets[target]
+                            until = state._beats_until_target_time(
+                                current_time=beat_time, target_time=target_time, beat_seconds=beat_seconds,
+                                beat_times_seconds=beat_times_seconds, beat_anchor_index=anchors[index],
+                            )
+                            if until > element["behavior"]["lookahead_beats"]:
+                                token = ""
                     _next_chord(
                         image, element, token, ratio,
                         warning=state._event_has_next_warning(song_events[index]), loop=loop, at_seconds=beat_time,

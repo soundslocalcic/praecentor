@@ -92,7 +92,7 @@ def test_v2_beat_pie_sweeps_clockwise_and_its_elapsed_area_is_transparent():
     assert later.getpixel((center_x - 40, center_y - 40)) != (18, 52, 86)
 
 
-def test_v2_repeat_indicator_counts_phrases_until_the_distant_chord_change(tmp_path, monkeypatch):
+def test_v2_next_chord_ring_counts_down_the_whole_event(tmp_path, monkeypatch):
     config = {"version": 2, "song": {"elements": {}}}
     only_song_elements(config, ("next_chord",))
     calls = []
@@ -110,14 +110,49 @@ def test_v2_repeat_indicator_counts_phrases_until_the_distant_chord_change(tmp_p
         frame_sink=lambda image, index: None,
     )
     assert len(calls) == 101
-    assert calls[0] == ("", 1, True)
-    assert calls[1] == ("", 0.75, True)
-    assert calls[4] == ("", 1, True)
-    assert calls[95][2] is True
-    assert calls[96] == ("G", 1, False)
+    assert calls[0] == ("G", 1, False)
+    assert calls[1][1] == pytest.approx(0.99)
+    assert calls[50][1] == pytest.approx(0.5)
+    assert all(call[0] == "G" and call[2] is False for call in calls[:100])
+    assert calls[96][1] == pytest.approx(0.04)
+    assert calls[100][1] == 1
 
 
-def test_v2_phrase_clock_follows_tempo_changes_and_event_phrase_overrides(tmp_path, monkeypatch):
+def test_v2_loop_symbol_only_marks_a_repeated_chord_set(tmp_path, monkeypatch):
+    config = {"version": 2, "song": {"elements": {}}}
+    only_song_elements(config, ("next_chord",))
+    calls = []
+    monkeypatch.setattr(v2, "_next_chord", lambda image, element, token, remaining, **kwargs: calls.append(
+        (token, kwargs["loop"])))
+    v2.render_cue_frames(
+        layout_data=config, output_dir=tmp_path, fps=1,
+        song_events=[{"chords": "Am F C G"}, {"chords": "Am F C G"}, {"chords": "Dm G"}, {}],
+        event_starts_seconds=[0, 16, 32, 40], tail_seconds=4, beat_seconds=1,
+        frame_sink=lambda image, index: None,
+    )
+    assert all(loop for _token, loop in calls[:16])
+    assert all(call == ("Dm", False) for call in calls[16:32])
+    assert all(loop for _token, loop in calls[32:40])
+    assert not any(loop for _token, loop in calls[40:])
+
+
+def test_v2_loop_symbol_marks_a_next_event_that_inherits_the_same_chords(tmp_path, monkeypatch):
+    config = {"version": 2, "song": {"elements": {}}}
+    only_song_elements(config, ("next_chord",))
+    calls = []
+    monkeypatch.setattr(v2, "_next_chord", lambda image, element, token, remaining, **kwargs: calls.append(
+        (token, kwargs["loop"])))
+    v2.render_cue_frames(
+        layout_data=config, output_dir=tmp_path, fps=1,
+        song_events=[{"chords": "B7, Em"}, {"lyric": "inherits"}, {"chords": "Eb6, G, E7"}],
+        event_starts_seconds=[0, 8, 16], tail_seconds=8, beat_seconds=1,
+        frame_sink=lambda image, index: None,
+    )
+    assert all(loop for _token, loop in calls[:8])
+    assert all(call == ("Eb6", False) for call in calls[8:16])
+
+
+def test_v2_event_ring_follows_tempo_changes(tmp_path, monkeypatch):
     config = {"version": 2, "song": {"elements": {}}}
     only_song_elements(config, ("next_chord",))
     calls = []
@@ -128,27 +163,27 @@ def test_v2_phrase_clock_follows_tempo_changes_and_event_phrase_overrides(tmp_pa
         tail_seconds=3, beat_seconds=0.5, beat_times_seconds=[0, 0.5, 1, 1.5, 2, 2.25, 2.5, 2.75, 3],
         default_beats_per_phrase=8, frame_sink=lambda image, index: None,
     )
-    assert calls[4] == 0.5
-    assert calls[8] == 1
-    assert calls[10] == 0.5
+    assert calls[4] == pytest.approx(0.75)
+    assert calls[8] == pytest.approx(0.5)
+    assert calls[10] == pytest.approx(0.25)
 
 
-def test_v2_repeat_countdown_applies_extra_beats_to_one_phrase_only(tmp_path, monkeypatch):
+def test_v2_event_ring_ignores_phrase_lengths_and_extra_beats(tmp_path, monkeypatch):
     config = {"version": 2, "song": {"elements": {}}}
     only_song_elements(config, ("next_chord",))
     calls = []
     monkeypatch.setattr(v2, "_next_chord", lambda image, element, token, remaining, **kwargs: calls.append(remaining))
     v2.render_cue_frames(
         layout_data=config, output_dir=tmp_path, fps=1,
-        song_events=[{"chords": "C", "extra_beats": 2}], event_starts_seconds=[0],
-        tail_seconds=11, beat_seconds=1, default_beats_per_phrase=4,
+        song_events=[{"chords": "C", "beats_per_phrase": 4, "extra_beats": 2}, {"chords": "G"}],
+        event_starts_seconds=[0, 6], tail_seconds=2, beat_seconds=1, default_beats_per_phrase=4,
         frame_sink=lambda image, index: None,
     )
     assert calls[0] == 1
+    assert calls[3] == pytest.approx(0.5)
     assert calls[4] == pytest.approx(1 / 3)
     assert calls[6] == 1
-    assert calls[7] == 0.75
-    assert calls[10] == 1
+    assert calls[7] == pytest.approx(0.5)
 
 
 def sample_config():

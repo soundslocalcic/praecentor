@@ -44,6 +44,24 @@ def test_scroll_and_opacity_are_continuous_at_the_event_boundary():
     assert next(item[2] for item in after if item[0]["row"] == 0) == 0
 
 
+def test_lead_in_beats_bring_the_next_lyric_in_before_its_event():
+    scroll = make_scroll([{"lyric": "First"}, {"lyric": "Second"}, {"lyric": "Third"}], [0, 10, 20],
+                         lead_in_beats=3)
+    halfway = scroll.placements(6, 0)
+    assert next(item[2] for item in halfway if item[0]["row"] == 1) == pytest.approx(0.75)
+    arrived = scroll.placements(7, 0)
+    block, placed, alpha = next(item for item in arrived if item[0]["row"] == 1)
+    assert placed["y"] + placed["height"] / 2 == pytest.approx(440)
+    assert alpha == 1
+    before = scroll.placements(10 - 1e-6, 0)
+    after = scroll.placements(10, 1)
+    for row in (0, 1):
+        previous = next(item for item in before if item[0]["row"] == row)
+        current = next(item for item in after if item[0]["row"] == row)
+        assert previous[1]["y"] == pytest.approx(current[1]["y"], abs=0.001)
+        assert previous[2] == pytest.approx(current[2], abs=0.001)
+
+
 def test_long_break_progress_is_a_centered_block_in_the_same_scroll():
     scroll = make_scroll([{"lyric": "Before"}, {"instruction": "Break"}, {"lyric": "After"}], [0, 5, 25])
     block, placed, alpha = next(item for item in scroll.placements(10, 1) if item[0]["kind"] == "progress")

@@ -123,11 +123,9 @@ class LyricScroll:
         transition = 0.0
         following = rows[row + 1] if row + 1 < len(rows) else None
         if following is not None:
-            window = min(
-                max(self.settings["scroll_preview_beats"], self.lead_in_beats) * self.beat_seconds,
-                following["time"] - current["time"],
-            )
-            transition = _ease((now - following["time"] + window) / max(window, self.frame_seconds))
+            arrival = max(current["time"], following["time"] - self.lead_in_beats * self.beat_seconds)
+            window = min(self.settings["scroll_preview_beats"] * self.beat_seconds, arrival - current["time"])
+            transition = _ease((now - arrival + window) / max(window, self.frame_seconds))
             offset += (following["center"] - current["center"]) * transition
         entrance = self.settings["entrance_beats"] * self.beat_seconds
         if row == 0 and entrance > 0 and now < current["time"] + entrance:

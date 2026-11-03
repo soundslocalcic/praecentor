@@ -8,6 +8,12 @@ from typing import Any
 ANALYSIS_SAMPLE_RATE = 22050
 DEFAULT_ANALYSIS_HOP_LENGTH = 256
 
+CLICK_HAT_HIGHPASS_HZ = 5000.0
+CLICK_KICK_LOWPASS_HZ = 150.0
+# Allows hat tempos up to 300 BPM during ramps.
+CLICK_HAT_MIN_GAP_SECONDS = 0.2
+CLICK_KICK_MIN_GAP_SECONDS = 0.45
+
 
 class BeatAnalysisError(RuntimeError):
     pass
@@ -201,17 +207,59 @@ def infer_beat_seconds_from_beats(beat_times: list[float]) -> float:
     return float(median_delta)
 
 
-def _dedupe_times_with_min_gap(
-    times: list[float], *, min_gap_seconds: float
+def _band_envelope(
+    y: Any, sos: Any, *, block: int, hold_bins: int = 1
+) -> Any:
+    import numpy as np
+    from scipy.ndimage import maximum_filter1d
+    from scipy.signal import sosfiltfilt
+
+    rectified = np.abs(sosfiltfilt(sos, y)).astype(np.float32, copy=False)
+    bins = rectified.size // block
+    envelope = rectified[: bins * block].reshape(bins, block).max(axis=1)
+    if hold_bins > 1:
+        envelope = maximum_filter1d(envelope, size=hold_bins)
+    return envelope
+
+
+def _pick_pulse_times(
+    envelope: Any,
+    *,
+    seconds_per_bin: float,
+    min_gap_seconds: float,
+    relative_height: float = 0.25,
+    floor_ratio: float = 0.05,
+    window_seconds: float = 3.0,
 ) -> list[float]:
-    if not times:
+    import numpy as np
+    from scipy.ndimage import maximum_filter1d
+    from scipy.signal import find_peaks
+
+    if envelope.size == 0:
         return []
-    out: list[float] = []
-    gap = max(0.0, float(min_gap_seconds))
-    for value in sorted(float(t) for t in times):
-        if not out or (value - out[-1]) >= gap:
-            out.append(value)
-    return out
+    peak_level = float(envelope.max())
+    if peak_level <= 0:
+        return []
+
+    # A rolling reference keeps quiet sections and level changes detectable.
+    window = max(1, round(window_seconds / seconds_per_bin))
+    local_max = maximum_filter1d(envelope, size=window)
+    height = np.maximum(local_max * relative_height, peak_level * floor_ratio)
+    peaks, _ = find_peaks(
+        envelope,
+        height=height,
+        distance=max(1, round(min_gap_seconds / seconds_per_bin)),
+    )
+
+    times: list[float] = []
+    for peak in peaks:
+        # Time each pulse at its half-height attack, not its decaying peak.
+        half = envelope[peak] * 0.5
+        idx = int(peak)
+        while idx > 0 and envelope[idx - 1] >= half:
+            idx -= 1
+        times.append(idx * seconds_per_bin)
+    return times
 
 
 def _snap_to_nearest_grid(
@@ -242,10 +290,11 @@ def _snap_to_nearest_grid(
 
 def analyze_click_track_grid_from_audio(
     audio_path: Path,
-    *,
-    hop_length: int = DEFAULT_ANALYSIS_HOP_LENGTH,
 ) -> dict[str, list[float]]:
     """Extract click markers from isolated click audio.
+
+    Hats and kicks are separated with band filters and timed from 1 ms
+    envelopes, avoiding a full-resolution spectrogram.
 
     Returns a mapping with:
     - beat_times: quarter-note beat boundaries (from hat pulses)
@@ -253,16 +302,12 @@ def analyze_click_track_grid_from_audio(
     - hat_times: detected hat pulse times
     - kick_times: detected kick pulse times
     """
-    hop = int(hop_length)
-    if hop < 1:
-        raise BeatAnalysisError("hop_length must be >= 1")
-
     try:
         import librosa
-        import numpy as np
+        from scipy.signal import butter
     except Exception as exc:  # pragma: no cover - depends on optional packages
         raise BeatAnalysisError(
-            "Click-track analysis requires librosa and numpy. "
+            "Click-track analysis requires librosa and scipy. "
             "Install with: pip install librosa"
         ) from exc
 
@@ -278,99 +323,43 @@ def analyze_click_track_grid_from_audio(
     if y.size == 0:
         raise BeatAnalysisError("Click track audio is empty")
 
+    block = max(1, int(sr) // 1000)
+    seconds_per_bin = block / float(sr)
     try:
-        stft_mag = np.abs(librosa.stft(y=y, n_fft=2048, hop_length=hop))
-        freqs = librosa.fft_frequencies(sr=sr, n_fft=2048)
+        hat_sos = butter(
+            4, CLICK_HAT_HIGHPASS_HZ, btype="highpass", fs=sr, output="sos"
+        )
+        kick_sos = butter(
+            4, CLICK_KICK_LOWPASS_HZ, btype="lowpass", fs=sr, output="sos"
+        )
+        hat_envelope = _band_envelope(y, hat_sos, block=block)
+        # Bridge the gaps between low-frequency cycles in the kick envelope.
+        kick_envelope = _band_envelope(
+            y, kick_sos, block=block, hold_bins=12
+        )
+        hat_times = _pick_pulse_times(
+            hat_envelope,
+            seconds_per_bin=seconds_per_bin,
+            min_gap_seconds=CLICK_HAT_MIN_GAP_SECONDS,
+        )
+        raw_kick_times = _pick_pulse_times(
+            kick_envelope,
+            seconds_per_bin=seconds_per_bin,
+            min_gap_seconds=CLICK_KICK_MIN_GAP_SECONDS,
+        )
     except Exception as exc:
         raise BeatAnalysisError(
             "Click-track spectral analysis failed"
         ) from exc
 
-    low_mask = freqs <= 220.0
-    high_mask = freqs >= 4000.0
-    if not np.any(low_mask) or not np.any(high_mask):
-        raise BeatAnalysisError(
-            "Click-track spectral masks are invalid for current sample rate"
-        )
-
-    high_envelope = np.asarray(stft_mag[high_mask, :].sum(axis=0), dtype=float)
-
-    try:
-        hat_frames = librosa.util.peak_pick(
-            high_envelope,
-            pre_max=2,
-            post_max=2,
-            pre_avg=4,
-            post_avg=4,
-            delta=0.03,
-            wait=1,
-        )
-    except Exception as exc:
-        raise BeatAnalysisError("Click-track peak picking failed") from exc
-
-    hat_times = _dedupe_times_with_min_gap(
-        librosa.frames_to_time(hat_frames, sr=sr, hop_length=hop).tolist(),
-        # Keep enough headroom for tempo ramps while still rejecting obvious
-        # doubled peaks.
-        min_gap_seconds=0.3,
-    )
     if len(hat_times) < 8:
         raise BeatAnalysisError(
             "Click-track analysis found too few hat pulses"
         )
 
-    try:
-        onset_envelope = librosa.onset.onset_strength(
-            y=y, sr=sr, hop_length=hop
-        )
-        onset_frames = librosa.onset.onset_detect(
-            onset_envelope=onset_envelope,
-            sr=sr,
-            hop_length=hop,
-            units="frames",
-            backtrack=False,
-        )
-    except Exception as exc:
-        raise BeatAnalysisError("Click-track onset detection failed") from exc
-
-    if len(onset_frames) < 4:
-        raise BeatAnalysisError(
-            "Click-track analysis found too few kick candidates"
-        )
-
-    onset_times = librosa.frames_to_time(onset_frames, sr=sr, hop_length=hop)
-    kick_scores: list[float] = []
-    low_ratios: list[float] = []
-    for frame in onset_frames:
-        f_idx = int(max(0, min(stft_mag.shape[1] - 1, frame)))
-        total_energy = float(stft_mag[:, f_idx].sum()) + 1e-9
-        low_energy = float(stft_mag[low_mask, f_idx].sum())
-        high_energy = float(stft_mag[high_mask, f_idx].sum())
-        low_ratio = low_energy / total_energy
-        high_ratio = high_energy / total_energy
-        low_ratios.append(low_ratio)
-        kick_scores.append(low_ratio - high_ratio)
-
-    kick_threshold = float(
-        np.percentile(np.asarray(kick_scores, dtype=float), 70.0)
-    )
-    kick_candidates = [
-        float(onset_times[i])
-        for i in range(len(onset_times))
-        if kick_scores[i] >= kick_threshold and low_ratios[i] >= 0.10
-    ]
-    raw_kick_times = _dedupe_times_with_min_gap(
-        kick_candidates, min_gap_seconds=0.45
-    )
-
     beat_times = list(hat_times)
-    if len(beat_times) < 2:
-        raise BeatAnalysisError(
-            "Click-track analysis found too few beat pulses"
-        )
-
     kick_times = _snap_to_nearest_grid(
-        raw_kick_times, beat_times, max_error_seconds=0.18
+        raw_kick_times, beat_times, max_error_seconds=0.08
     )
     if len(kick_times) < 2:
         raise BeatAnalysisError(

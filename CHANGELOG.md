@@ -17,6 +17,8 @@ All notable changes to Praecentor are documented here.
 - Pure original-v1-to-v2 layout conversion with explicit geometry, retained media/visibility and review warnings for non-identical legacy appearance.
 
 ### Fixed
+- V2 lyrics honour `timing.lyrics.lead_in_beats`: the next lyric finishes scrolling into the centre that many beats before its event, as in v1.
+- Click-track analysis detects hi-hat beats and kick bar starts with band filters and 1 ms envelopes instead of a full spectrogram. This stops false mid-bar downbeats from spinning the beat pie and keeps beat timing within about 1 ms through tempo ramps, using about a quarter of the memory of the original native-rate analysis.
 - Extend default v2 scroll fades to 282px at both viewport edges, with placement-independent top/bottom behaviour and a regression guard against applying the legacy wash asset.
 - Extend the default lyric scroll from the video top to the chord-row centre and fade its edges with a cached alpha-only mask; current chords are left-aligned.
 - Enlarge the default beat pie by 25% around its existing centre without moving lookahead, and include the same pie on the title canvas with the song meter.
@@ -28,7 +30,7 @@ All notable changes to Praecentor are documented here.
 - V2 lyrics use one measured event-centred scroll with partially clipped neighbours, fading 100%/50%/25% active/upcoming/outgoing text, long-break progress bars and optional entrance/final-exit motion. Adds a `lyrics-long` preview state.
 - Sparse v2 specs now inherit the shared all-elements template; element/canvas `enabled: false` explicitly opts out without expanding stored YAML or changing v1 semantics.
 - V2 rendering reuses bounded fitted-text/sprite caches instead of measuring and rasterising unchanged text every frame.
-- V2 beat pies sweep clockwise and leave the elapsed area transparent. The next-chord indicator retains its repeat symbol between changes and counts down each phrase, including tempo/phrase overrides and one-shot extra beats.
+- V2 beat pies sweep clockwise and leave the elapsed area transparent. The next-chord indicator shows the repeat symbol only when the next chord set is identical, otherwise previewing the next chord for the whole event (matching v1); its dotted ring counts down the current event in beats, independent of phrase lengths and the beat clock.
 
 ## [2026.3.0] - 2026-11-02
 
