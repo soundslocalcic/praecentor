@@ -1,4 +1,4 @@
 """Praecentor package."""
 
 __all__ = ["__version__"]
-__version__ = "2026.3.0"
+__version__ = "2026.4.0"
