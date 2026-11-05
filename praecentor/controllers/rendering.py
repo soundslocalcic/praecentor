@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from bisect import bisect_left
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import math
 import os
 import platform
 import queue
@@ -40,7 +41,7 @@ MAX_RENDER_FPS = 24
 DEFAULT_VIDEO_HOLD_PAD_SECONDS = 3600
 DEFAULT_VIDEO_ENCODER = "libx264"
 DEFAULT_VIDEO_PRESET = "medium"
-DEFAULT_FRAME_QUEUE_SIZE = 0
+DEFAULT_FRAME_QUEUE_SIZE = 8
 DEFAULT_STEM_DURATION_TOLERANCE_SECONDS = 0.02
 DEFAULT_IGNORE_STEM_LENGTH_MISMATCH = False
 DEFAULT_MUX_MAX_WORKERS = 8
@@ -1794,13 +1795,7 @@ def _validate_uniform_track_durations(
         raise ControllerError("No audio tracks available for render")
 
     durations: list[tuple[str, float]] = []
-    for track in tracks:
-        track_path = track.get("file_path")
-        key = f"{track.get('group')}.{track.get('name')}"
-        if not isinstance(track_path, Path):
-            raise ControllerError(f"Track path missing for {key}")
-
-        duration = _probe_audio_duration_seconds(track_path, ffmpeg_path)
+    for key, track_path, duration in _probe_track_durations(tracks, ffmpeg_path):
         if duration is None or duration <= 0:
             raise ControllerError(
                 f"Unable to probe track duration for {key} ({track_path})"
@@ -1824,7 +1819,22 @@ def _validate_uniform_track_durations(
             f"{'; '.join(details)}"
         )
 
-    return reference_duration
+    return max(duration for _, duration in durations)
+
+
+def _probe_track_durations(
+    tracks: list[dict[str, Any]], ffmpeg_path: str
+) -> list[tuple[str, Path, float | None]]:
+    results: list[tuple[str, Path, float | None]] = []
+    for track in tracks:
+        track_path = track.get("file_path")
+        key = f"{track.get('group')}.{track.get('name')}"
+        if not isinstance(track_path, Path):
+            raise ControllerError(f"Track path missing for {key}")
+        results.append(
+            (key, track_path, _probe_audio_duration_seconds(track_path, ffmpeg_path))
+        )
+    return results
 
 
 class _DirectFrameEncodeSession:
@@ -1850,6 +1860,8 @@ class _DirectFrameEncodeSession:
         self._writer_thread: threading.Thread | None = None
         self._writer_failure: BaseException | None = None
         self._finished_writing = False
+        self._frames_written = 0
+        self._last_payload: bytes | None = None
 
         if frame_queue_size > 0:
             self._frame_queue = queue.Queue(maxsize=frame_queue_size)
@@ -1908,14 +1920,28 @@ class _DirectFrameEncodeSession:
                 "Encoded frame payload size mismatch: "
                 f"got {len(payload)}, expected {self._expected_payload_size}"
             )
+        self._write_payload(payload)
+
+    def _write_payload(self, payload: bytes) -> None:
         if self._frame_queue is None:
             if self._proc is None or self._proc.stdin is None:
                 raise ControllerError(
                     "ffmpeg stdin is not available for frame streaming"
                 )
             self._proc.stdin.write(payload)
-            return
-        self._queue_payload(payload)
+        else:
+            self._queue_payload(payload)
+        self._frames_written += 1
+        self._last_payload = payload
+
+    def hold_last_frame_until(self, total_frames: int) -> int:
+        if self._last_payload is None:
+            return 0
+        added = 0
+        while self._frames_written < total_frames:
+            self._write_payload(self._last_payload)
+            added += 1
+        return added
 
     def finish_writing(self) -> None:
         if self._finished_writing:
@@ -3296,14 +3322,27 @@ def render(
         )
 
     stem_duration: float | None = None
-    if stem_audio is not None and not ignore_stem_length_mismatch:
+    if stem_audio is not None:
         all_stem_tracks = list(stem_audio["track_index"].values())
-        stem_duration = _validate_uniform_track_durations(
-            tracks=all_stem_tracks,
-            ffmpeg_path=str(ffmpeg_path),
-            tolerance_seconds=stem_duration_tolerance,
-        )
-        emit(f"stem_duration_seconds={stem_duration:.6f}")
+        if ignore_stem_length_mismatch:
+            probed_stem_durations = [
+                duration
+                for _, _, duration in _probe_track_durations(
+                    all_stem_tracks, str(ffmpeg_path)
+                )
+                if duration is not None and duration > 0
+            ]
+            stem_duration = (
+                max(probed_stem_durations) if probed_stem_durations else None
+            )
+        else:
+            stem_duration = _validate_uniform_track_durations(
+                tracks=all_stem_tracks,
+                ffmpeg_path=str(ffmpeg_path),
+                tolerance_seconds=stem_duration_tolerance,
+            )
+        if stem_duration is not None:
+            emit(f"stem_duration_seconds={stem_duration:.6f}")
 
     if maestro_only:
         if stem_audio is None:
@@ -3341,8 +3380,8 @@ def render(
     probed_audio_duration = _probe_audio_duration_seconds(
         audio_path, str(ffmpeg_path)
     )
-    if probed_audio_duration is None and stem_audio is not None:
-        probed_audio_duration = stem_duration
+    if stem_duration is not None:
+        probed_audio_duration = max(probed_audio_duration or 0.0, stem_duration)
 
     ffmpeg_audio_seek_seconds = (
         audio_start_offset_seconds + section_from_seconds
@@ -3464,7 +3503,6 @@ def render(
     )
 
     silent_video_path: Path | None = None
-    padded_video_path: Path | None = None
 
     try:
         with frame_progress:
@@ -3586,6 +3624,12 @@ def render(
                     frame_sink=frame_sink,
                     frame_progress_callback=_tick_frame,
                 )
+                if target_output_duration is not None:
+                    # Mux trims to target_output_duration, so round up rather than leave a gap.
+                    held_frames = direct_session.hold_last_frame_until(
+                        math.ceil(target_output_duration * fps - 1e-6)
+                    )
+                    emit(f"held_tail_frame_count={held_frames}")
                 frame_generation_elapsed = (
                     perf_counter() - frame_generation_started_at
                 )
@@ -3602,54 +3646,6 @@ def render(
             emit(f"Rendered silent video to: {silent_video_path}")
 
             mux_video_source_path = silent_video_path
-            if target_output_duration is not None:
-                padded_fd, padded_path_raw = tempfile.mkstemp(
-                    suffix=".padded.mp4"
-                )
-                os.close(padded_fd)
-                padded_video_path = Path(padded_path_raw)
-
-                pad_started_at = perf_counter()
-                pad_duration = max(0.001, float(target_output_duration))
-                pad_cmd = [
-                    str(ffmpeg_path),
-                    "-y",
-                    "-i",
-                    str(silent_video_path),
-                    "-vf",
-                    f"tpad=stop_mode=clone:stop_duration={pad_duration:.6f}",
-                    "-c:v",
-                    str(video_encoder),
-                ]
-                if video_encoder.lower() == "libx264":
-                    pad_cmd.extend(["-preset", str(video_preset)])
-                    if video_crf is not None:
-                        pad_cmd.extend(["-crf", str(video_crf)])
-                if video_bitrate is not None and str(video_bitrate).strip():
-                    pad_cmd.extend(["-b:v", str(video_bitrate).strip()])
-                pad_cmd.extend(
-                    [
-                        "-pix_fmt",
-                        "yuv420p",
-                        "-t",
-                        f"{target_output_duration:.6f}",
-                        str(padded_video_path),
-                    ]
-                )
-
-                pad_proc = subprocess.run(pad_cmd, capture_output=True)
-                pad_elapsed = perf_counter() - pad_started_at
-                emit(f"timing_video_padding_seconds={pad_elapsed:.6f}")
-                if pad_proc.returncode != 0:
-                    pad_err = pad_proc.stderr.decode(
-                        "utf-8", errors="replace"
-                    ).strip()
-                    raise ControllerError(
-                        "ffmpeg video padding failed:\n"
-                        + (pad_err or "unknown error")
-                    )
-                mux_video_source_path = padded_video_path
-                emit(f"Prepared padded mux video: {mux_video_source_path}")
 
             audio_delay_ms = int(round(countdown_duration * 1000.0))
             rendered_video_paths: list[Path] = []
@@ -3773,14 +3769,9 @@ def render(
     finally:
         if background_layer_renderer is not None:
             background_layer_renderer.close()
-        for temp_path in (
-            silent_video_path,
-            padded_video_path,
-        ):
-            if temp_path is None:
-                continue
+        if silent_video_path is not None:
             try:
-                temp_path.unlink(missing_ok=True)
+                silent_video_path.unlink(missing_ok=True)
             except OSError:
                 pass
 

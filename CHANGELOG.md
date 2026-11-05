@@ -2,6 +2,16 @@
 
 All notable changes to Praecentor are documented here.
 
+## [Unreleased]
+
+### Changed
+- Renders encode the video once: the final frame is streamed until the target duration instead of re-encoding the whole video with an FFmpeg `tpad` pass.
+- `--frame-queue-size` now defaults to 8, so frame drawing overlaps with FFmpeg encoding.
+- Static background layers are composited once per render rather than every frame.
+
+### Fixed
+- Output duration uses the longest audio stem, including with `--ignore-stem-length-mismatch`, so videos no longer end before the music.
+
 ## [2026.4.0] - 2026-11-03
 
 ### Changed

@@ -1,12 +1,64 @@
 from __future__ import annotations
 
 from pathlib import Path
+import sys
 from types import SimpleNamespace
 
+from PIL import Image
 import pytest
 
 from praecentor.controllers import rendering
 from praecentor.controllers.errors import ControllerError
+from praecentor.render.background_layers import (
+    BackgroundLayerRenderer,
+    _ImageLayer,
+)
+
+
+@pytest.mark.parametrize("frame_queue_size", [0, 4])
+def test_direct_session_holds_last_frame_until_target(
+    tmp_path: Path, frame_queue_size: int
+) -> None:
+    sink_path = tmp_path / "frames.raw"
+    session = rendering._DirectFrameEncodeSession(
+        ffmpeg_cmd=[
+            sys.executable,
+            "-c",
+            "import sys; open(sys.argv[1], 'wb').write(sys.stdin.buffer.read())",
+            str(sink_path),
+        ],
+        frame_queue_size=frame_queue_size,
+        width=2,
+        height=1,
+    )
+    session.frame_sink(Image.new("RGB", (2, 1), (1, 2, 3)), 0)
+    session.frame_sink(Image.new("RGB", (2, 1), (9, 8, 7)), 1)
+
+    assert session.hold_last_frame_until(5) == 3
+    assert session.hold_last_frame_until(5) == 0
+    session.finish_writing()
+    session.wait_and_validate(emit=lambda _line: None)
+
+    assert sink_path.read_bytes() == bytes([1, 2, 3] * 2 + [9, 8, 7] * 2 * 4)
+
+
+def test_background_renderer_composes_once_and_returns_copies(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    layer = _ImageLayer(Image.new("RGBA", (2, 2), (255, 255, 255, 25)))
+    renderer = BackgroundLayerRenderer(
+        width=2, height=2, base_color=(0, 0, 0), layers=[layer]
+    )
+    calls = []
+    original_frame = layer.frame
+    monkeypatch.setattr(layer, "frame", lambda: calls.append(1) or original_frame())
+
+    first = renderer.next_frame()
+    first.putpixel((0, 0), (200, 0, 0))
+    second = renderer.next_frame()
+
+    assert len(calls) == 1
+    assert second.getpixel((0, 0)) == second.getpixel((1, 1)) == (25, 25, 25)
 
 
 def test_lyric_helpers_strip_markers_and_track_lengths() -> None:

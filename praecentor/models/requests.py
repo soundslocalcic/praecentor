@@ -19,7 +19,7 @@ class RenderRequest:
     video_crf: int | None = None
     video_bitrate: str | None = None
     background_hwaccel: str | None = None
-    frame_queue_size: int = 0
+    frame_queue_size: int = 8
     stem_duration_tolerance: float = 0.02
     ignore_stem_length_mismatch: bool = False
 

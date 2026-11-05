@@ -91,7 +91,7 @@ praecentor --help
 
 ## Release notes
 
-The latest release notes are tracked in [CHANGELOG.md](CHANGELOG.md). The current release is 2026.2.0.
+The latest release notes are tracked in [CHANGELOG.md](CHANGELOG.md). The current release is 2026.4.0.
 
 ---
 
@@ -355,7 +355,20 @@ Useful rendering options include:
 - `--maestro-only`: write the Maestro zip without muxing full video output
 - `--video-encoder`: choose the FFmpeg encoder
 - `--video-preset`, `--video-crf`, `--video-bitrate`: tweak output quality
-- `--ignore-stem-length-mismatch`: skip audio stem validation if needed
+- `--frame-queue-size`: frames buffered between drawing and FFmpeg (default 8; `0` writes synchronously)
+- `--ignore-stem-length-mismatch`: skip audio stem validation if needed; the video still runs to the longest stem
+
+### Render performance
+
+Frames are drawn with Pillow and streamed as raw RGB into a single FFmpeg encode; no intermediate PNGs are written. After the last cue, the final frame is held until the video matches the audio (the longest stem when using `audio.stems`), so the video is only encoded once. A static background is composited once and reused for every frame.
+
+On small VMs (for example 2 vCPUs), drawing uses roughly one core and libx264 the rest. If renders are too slow, try a faster encoder preset first:
+
+```bash
+praecentor render Praecentor.yaml --video-preset veryfast
+```
+
+The render log includes `timing_frame_generation_seconds`, `timing_ffmpeg_encode_wait_seconds` and `timing_mux_total_seconds` to show where time is spent.
 
 ---
 

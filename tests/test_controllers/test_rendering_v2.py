@@ -512,6 +512,9 @@ def test_controller_renders_v2_with_its_own_canvas_and_background(tmp_path, monk
         def finish_writing(self):
             pass
 
+        def hold_last_frame_until(self, total_frames):
+            return 0
+
         def wait_and_validate(self, **kwargs):
             pass
 

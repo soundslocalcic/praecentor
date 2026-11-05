@@ -102,8 +102,15 @@ class BackgroundLayerRenderer:
         self._height = height
         self._base_color = base_color
         self._layers = layers
+        self._composed: Image.Image | None = None
 
     def next_frame(self) -> Image.Image:
+        # Layers are static images, so compose once and hand out copies.
+        if self._composed is None:
+            self._composed = self._compose()
+        return self._composed.copy()
+
+    def _compose(self) -> Image.Image:
         composed = Image.new(
             "RGBA",
             (self._width, self._height),

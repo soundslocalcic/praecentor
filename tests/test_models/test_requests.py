@@ -12,7 +12,7 @@ def test_render_request_defaults() -> None:
 
     assert request.video_encoder == "libx264"
     assert request.video_preset == "medium"
-    assert request.frame_queue_size == 0
+    assert request.frame_queue_size == 8
     assert request.ignore_stem_length_mismatch is False
 
 
